@@ -37,8 +37,7 @@ public class TestLocalization {
             DiscordLocale.GERMAN,
             DiscordLocale.SPANISH,
             DiscordLocale.FRENCH,
-            DiscordLocale.PORTUGUESE_BRAZILIAN,
-            DiscordLocale.RUSSIAN
+            DiscordLocale.PORTUGUESE_BRAZILIAN
     };
 
 

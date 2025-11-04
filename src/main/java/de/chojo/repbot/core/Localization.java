@@ -34,8 +34,7 @@ public class Localization {
                              .addLanguage(DiscordLocale.GERMAN,
                                      DiscordLocale.SPANISH,
                                      DiscordLocale.FRENCH,
-                                     DiscordLocale.PORTUGUESE_BRAZILIAN,
-                                     DiscordLocale.RUSSIAN)
+                                     DiscordLocale.PORTUGUESE_BRAZILIAN)
                              .withLanguageProvider(guild -> data.guilds().guild(guild).settings().general().language())
                              .withGuildLocaleCodeProvider((guild, code) -> {
                                  if (!"words.reputation".equals(code)) return Optional.empty();
