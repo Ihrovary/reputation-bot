@@ -12,8 +12,10 @@ import de.chojo.jdautil.localization.util.LocaleProvider;
 import de.chojo.jdautil.localization.util.Replacement;
 import de.chojo.repbot.analyzer.results.match.ThankType;
 import de.chojo.repbot.config.Configuration;
+import de.chojo.repbot.dao.access.guild.settings.sub.thanking.ReactionCheckResult;
 import de.chojo.repbot.dao.provider.GuildRepository;
 import de.chojo.repbot.dao.snapshots.ReputationLogEntry;
+import de.chojo.repbot.service.reputation.KarmaType;
 import de.chojo.repbot.service.reputation.ReputationService;
 import de.chojo.repbot.util.PermissionErrorHandler;
 import net.dv8tion.jda.api.Permission;
@@ -65,7 +67,15 @@ public class ReactionListener extends ListenerAdapter {
 
         if (!guildSettings.thanking().channels().isEnabled(event.getGuildChannel())) return;
         if (!guildSettings.reputation().isReactionActive()) return;
-        if (!guildSettings.thanking().reactions().isReaction(event.getReaction())) return;
+
+        var reactionCheck = guildSettings.thanking().reactions().checkReaction(event.getReaction());
+        if (reactionCheck == ReactionCheckResult.NOT_RELEVANT) return;
+
+        var karmaType = switch (reactionCheck) {
+            case POSITIVE -> KarmaType.POSITIVE;
+            case NEGATIVE -> KarmaType.NEGATIVE;
+            default -> throw new IllegalArgumentException("Unexpected value: " + reactionCheck);
+        };
 
         if (isCooldown(event.getMember())) return;
 
@@ -104,7 +114,7 @@ public class ReactionListener extends ListenerAdapter {
             return;
         }
 
-        if (reputationService.submitReputation(event.getGuild(), event.getMember(), receiver, message, null, ThankType.REACTION)) {
+        if (reputationService.submitReputation(event.getGuild(), event.getMember(), receiver, message, null, ThankType.REACTION, karmaType)) {
             reacted(event.getMember());
             if (guildSettings.messages().isReactionConfirmation()) {
                 event.getChannel().sendMessage(localizer.localize("listener.reaction.confirmation", event.getGuild(),
@@ -125,7 +135,10 @@ public class ReactionListener extends ListenerAdapter {
     public void onMessageReactionRemoveEmoji(@NotNull MessageReactionRemoveEmojiEvent event) {
         if (!event.isFromGuild()) return;
         var guildSettings = guildRepository.guild(event.getGuild()).settings();
-        if (!guildSettings.thanking().reactions().isReaction(event.getReaction())) return;
+
+        var reactionCheck = guildSettings.thanking().reactions().checkReaction(event.getReaction());
+        if (reactionCheck == ReactionCheckResult.NOT_RELEVANT) return;
+        
         List<ReputationLogEntry> entries = guildRepository.guild(event.getGuild()).reputation().log().messageLog(event.getMessageIdLong(), 50).stream()
                                                           .filter(entry -> entry.type() == ThankType.REACTION)
                                                           .toList();
@@ -136,7 +149,10 @@ public class ReactionListener extends ListenerAdapter {
     public void onMessageReactionRemove(@NotNull MessageReactionRemoveEvent event) {
         if (!event.isFromGuild()) return;
         var guildSettings = guildRepository.guild(event.getGuild()).settings();
-        if (!guildSettings.thanking().reactions().isReaction(event.getReaction())) return;
+
+        var reactionCheck = guildSettings.thanking().reactions().checkReaction(event.getReaction());
+        if (reactionCheck == ReactionCheckResult.NOT_RELEVANT) return;
+        
         var entries = guildRepository.guild(event.getGuild()).reputation().log().messageLog(event.getMessageIdLong(), 50)
                                      .stream()
                                      .filter(entry -> entry.type() == ThankType.REACTION && entry.donorId() == event.getUserIdLong())

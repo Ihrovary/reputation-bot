@@ -77,7 +77,7 @@ public class ReputationService {
      * @param type       type of reputation source
      * @return true if the reputation was counted and is valid
      */
-    public boolean submitReputation(Guild guild, Member donor, @Nullable Member receiver, Message message, @Nullable Message refMessage, ThankType type) {
+    public boolean submitReputation(Guild guild, Member donor, @Nullable Member receiver, Message message, @Nullable Message refMessage, ThankType type, KarmaType karmaType) {
         var repGuild = guildRepository.guild(guild);
         log.trace("Submitting reputation for message {} of type {}", message.getIdLong(), type);
         if (receiver == null) {
@@ -121,7 +121,9 @@ public class ReputationService {
 
         if (assertAbuseProtection(guild, donor, receiver, message, refMessage, context)) return false;
 
-        return log(guild, donor, receiver, message, refMessage, type, settings);
+        var amount = settings.reputation().getAmount(karmaType);
+
+        return log(guild, donor, receiver, message, refMessage, type, amount, settings);
     }
 
     public void deleteBulk(List<Long> messages, GuildMessageChannelUnion channel, Guild guild) {
@@ -251,11 +253,11 @@ public class ReputationService {
         return false;
     }
 
-    private boolean log(Guild guild, Member donor, Member receiver, Message message, @Nullable Message refMessage, ThankType type, Settings settings) {
+    private boolean log(Guild guild, Member donor, Member receiver, Message message, @Nullable Message refMessage, ThankType type, int amount, Settings settings) {
         var repGuild = guildRepository.guild(guild);
         // try to log a reputation
         if (!repGuild.reputation().user(receiver)
-                     .addReputation(donor, message, refMessage, type)) {// submit to database failed. Maybe this message was already voted by the user.
+                     .addReputation(donor, message, refMessage, type, amount)) {// submit to database failed. Maybe this message was already voted by the user.
             repGuild.reputation().analyzer().log(message, SubmitResult.of(SubmitResultType.ALREADY_PRESENT));
             log.trace("Could not log reputation for message {}. An equal entry was already present.", message.getIdLong());
             return false;

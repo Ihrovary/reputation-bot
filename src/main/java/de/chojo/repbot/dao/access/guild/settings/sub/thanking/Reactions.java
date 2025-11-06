@@ -6,9 +6,9 @@
 package de.chojo.repbot.dao.access.guild.settings.sub.thanking;
 
 import de.chojo.jdautil.parsing.Verifier;
-import de.chojo.jdautil.util.Premium;
 import de.chojo.repbot.dao.access.guild.settings.sub.Thanking;
 import de.chojo.repbot.dao.components.GuildHolder;
+import de.chojo.repbot.service.reputation.KarmaType;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.MessageReaction;
 import net.dv8tion.jda.api.entities.emoji.CustomEmoji;
@@ -16,6 +16,7 @@ import net.dv8tion.jda.api.entities.emoji.UnicodeEmoji;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -26,12 +27,14 @@ import static de.chojo.sadu.queries.api.query.Query.query;
 public class Reactions implements GuildHolder {
     private final Thanking thanking;
     private final Set<String> reactions;
+    private final Set<String> negativeReactions;
     private String mainReaction;
 
-    public Reactions(Thanking thanking, String mainReaction, Set<String> reactions) {
+    public Reactions(Thanking thanking, String mainReaction, Set<String> positiveReactions, Set<String> negativeReactions) {
         this.thanking = thanking;
         this.mainReaction = mainReaction;
-        this.reactions = reactions;
+        this.reactions = positiveReactions;
+        this.negativeReactions = negativeReactions;
     }
 
     @Override
@@ -44,26 +47,24 @@ public class Reactions implements GuildHolder {
         return thanking.guildId();
     }
 
-    public boolean isReaction(MessageReaction reaction) {
+    public ReactionCheckResult checkReaction(MessageReaction reaction) {
         if (reaction.getEmoji() instanceof UnicodeEmoji emoji) {
-            return isReaction(emoji.getAsReactionCode());
+            return checkReaction(emoji.getAsReactionCode());
         }
         if (reaction.getEmoji() instanceof CustomEmoji emoji) {
-            return isReaction(emoji.getId());
+            return checkReaction(emoji.getId());
         }
-        return false;
+        return ReactionCheckResult.NOT_RELEVANT;
     }
 
-    private boolean isReaction(String reaction) {
-        if (mainReaction.equals(reaction)) {
-            return true;
+    private ReactionCheckResult checkReaction(String reaction) {
+        if (reactions.contains(reaction)) {
+            return ReactionCheckResult.POSITIVE;    
+        } else if (negativeReactions.contains(reaction)) {
+            return ReactionCheckResult.NEGATIVE;
+        } else {
+            return ReactionCheckResult.NOT_RELEVANT;
         }
-        if (Premium.isNotEntitled(
-                thanking.settings().repGuild().subscriptions(),
-                thanking.settings().repGuild().configuration().skus().features().additionalEmojis().additionalEmojis())) {
-            return false;
-        }
-        return reactions.contains(reaction);
     }
 
     public boolean reactionIsEmote() {
@@ -96,17 +97,21 @@ public class Reactions implements GuildHolder {
                         .collect(Collectors.toList());
     }
 
-    public boolean add(String reaction) {
+    public boolean add(String reaction, KarmaType type) {
         var result = query("""
-                INSERT INTO guild_reactions(guild_id, reaction) VALUES (?,?)
+                INSERT INTO guild_reactions(guild_id, reaction, reaction_type) VALUES (?,?,?)
                     ON CONFLICT(guild_id, reaction)
                         DO NOTHING;
                 """)
-                .single(call().bind(guildId()).bind(reaction))
+                .single(call().bind(guildId()).bind(reaction).bind(type.name()))
                 .update()
                 .changed();
         if (result) {
-            reactions.add(reaction);
+            if (type == KarmaType.POSITIVE) {
+                reactions.add(reaction);
+            } else {
+                negativeReactions.add(reaction);
+            }
         }
         return result;
     }
@@ -119,7 +124,12 @@ public class Reactions implements GuildHolder {
                 .update()
                 .changed();
         if (result) {
-            reactions.remove(reaction);
+            if (negativeReactions.contains(reaction)) {
+                negativeReactions.remove(reaction);
+            }
+            else{
+                reactions.remove(reaction);
+            }
         }
 
         return result;
@@ -142,7 +152,9 @@ public class Reactions implements GuildHolder {
         return result;
     }
 
-    public Set<String> reactions() {
-        return reactions;
+    public Set<String> allReactions() {
+        var combined = new HashSet<>(reactions);
+        combined.addAll(negativeReactions);
+        return combined;
     }
 }

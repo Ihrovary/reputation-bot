@@ -7,6 +7,7 @@ package de.chojo.repbot.dao.access.guild.settings.sub;
 
 import de.chojo.repbot.dao.access.guild.settings.Settings;
 import de.chojo.repbot.dao.components.GuildHolder;
+import de.chojo.repbot.service.reputation.KarmaType;
 import de.chojo.sadu.mapper.wrapper.Row;
 import de.chojo.sadu.queries.api.call.Call;
 import net.dv8tion.jda.api.entities.Guild;
@@ -27,12 +28,14 @@ public class Reputation implements GuildHolder {
     private boolean fuzzyActive;
     private boolean embedActive;
     private boolean directActive;
+    private int positiveAmount;
+    private int negativeAmount;
 
     public Reputation(Settings settings) {
-        this(settings, true, true, true, true, true, false);
+        this(settings, true, true, true, true, true, false, 1, -1);
     }
 
-    public Reputation(Settings settings, boolean reactionActive, boolean answerActive, boolean mentionActive, boolean fuzzyActive, boolean embedActive, boolean directActive) {
+    public Reputation(Settings settings, boolean reactionActive, boolean answerActive, boolean mentionActive, boolean fuzzyActive, boolean embedActive, boolean directActive, int positiveAmount, int negativeAmount) {
         this.settings = settings;
         this.reactionActive = reactionActive;
         this.answerActive = answerActive;
@@ -40,6 +43,8 @@ public class Reputation implements GuildHolder {
         this.fuzzyActive = fuzzyActive;
         this.embedActive = embedActive;
         this.directActive = directActive;
+        this.positiveAmount = positiveAmount;
+        this.negativeAmount = negativeAmount;
     }
 
     public static Reputation build(Settings settings, Row rs) throws SQLException {
@@ -49,7 +54,9 @@ public class Reputation implements GuildHolder {
                 rs.getBoolean("mention_active"),
                 rs.getBoolean("fuzzy_active"),
                 rs.getBoolean("embed_active"),
-                rs.getBoolean("skip_single_embed"));
+                rs.getBoolean("skip_single_embed"),
+                rs.getInt("positive_amount"),
+                rs.getInt("negative_amount"));
     }
 
     public boolean isReactionActive() {
@@ -124,6 +131,13 @@ public class Reputation implements GuildHolder {
         return this.directActive;
     }
 
+    public int getAmount(KarmaType type) {
+        return switch (type) {
+            case POSITIVE -> positiveAmount;
+            case NEGATIVE -> negativeAmount;
+        };
+    }
+
     public String toLocalizedString() {
         var setting = List.of(
                 getSetting("command.repsettings.info.message.option.byreaction.name", isReactionActive()),
@@ -135,7 +149,9 @@ public class Reputation implements GuildHolder {
                                                                                                     .isDirectActive()),
                 getSetting("command.repsettings.info.message.option.reputationmode.name", settings.general()
                                                                                                   .reputationMode()
-                                                                                                  .localeCode())
+                                                                                                  .localeCode()),
+                getSetting("karmatype.positive", positiveAmount),
+                getSetting("karmatype.negative", negativeAmount)
         );
 
         return String.join("\n", setting);
@@ -147,6 +163,10 @@ public class Reputation implements GuildHolder {
 
     private String getSetting(@PropertyKey(resourceBundle = "locale") String locale, String object) {
         return String.format("$%s$: $%s$", locale, object);
+    }
+
+    private String getSetting(@PropertyKey(resourceBundle = "locale") String locale, int object) {
+        return String.format("$%s$: %d", locale, object);
     }
 
     @Override

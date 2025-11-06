@@ -15,7 +15,7 @@ WITH
         AS (
         SELECT
             receiver_id AS user_id,
-            count(1)    AS reputation
+            sum(amount) AS reputation
         FROM
             reputation_log
         WHERE received > :date_init

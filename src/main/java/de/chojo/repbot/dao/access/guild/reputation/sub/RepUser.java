@@ -109,12 +109,13 @@ public class RepUser implements MemberHolder {
      * @param message    message to log
      * @param refMessage reference message if available
      * @param type       type of reputation
+     * @param amount     amount of reputation points
      * @return true if the reputation was logged.
      */
-    public boolean addReputation(@Nullable Member donor, @NotNull Message message, @Nullable Message refMessage, ThankType type) {
+    public boolean addReputation(@Nullable Member donor, @NotNull Message message, @Nullable Message refMessage, ThankType type, int amount) {
         var success = query("""
                 INSERT INTO
-                reputation_log(guild_id, donor_id, receiver_id, message_id, ref_message_id, channel_id, cause) VALUES(?,?,?,?,?,?,?)
+                reputation_log(guild_id, donor_id, receiver_id, message_id, ref_message_id, channel_id, cause, amount) VALUES(?,?,?,?,?,?,?,?)
                     ON CONFLICT(guild_id, donor_id, receiver_id, message_id)
                         DO NOTHING;
                 """)
@@ -122,7 +123,8 @@ public class RepUser implements MemberHolder {
                               .bind(userId())
                               .bind(message.getIdLong())
                               .bind(refMessage == null ? null : refMessage.getIdLong())
-                              .bind(message.getChannel().getIdLong()).bind(type.name()))
+                              .bind(message.getChannel().getIdLong()).bind(type.name())
+                              .bind(amount))
                 .insert()
                 .changed();
         if (success) {
@@ -282,7 +284,7 @@ public class RepUser implements MemberHolder {
         return query("""
                 SELECT
                     channel_id,
-                    count(1) AS count
+                    sum(amount) AS count
                 FROM
                     reputation_log
                 WHERE guild_id = ?
@@ -304,7 +306,7 @@ public class RepUser implements MemberHolder {
         return query("""
                 SELECT
                     channel_id,
-                    count(1) AS count
+                    sum(amount) AS count
                 FROM
                     reputation_log
                 WHERE guild_id = ?

@@ -11,6 +11,7 @@ import de.chojo.repbot.dao.access.guild.settings.sub.thanking.DonorRoles;
 import de.chojo.repbot.dao.access.guild.settings.sub.thanking.Reactions;
 import de.chojo.repbot.dao.access.guild.settings.sub.thanking.ReceiverRoles;
 import de.chojo.repbot.dao.access.guild.settings.sub.thanking.Thankwords;
+import de.chojo.repbot.service.reputation.KarmaType;
 import de.chojo.repbot.dao.components.GuildHolder;
 import de.chojo.sadu.mapper.wrapper.Row;
 import net.dv8tion.jda.api.entities.Guild;
@@ -112,15 +113,26 @@ public class Thanking  implements GuildHolder {
         if (reactions != null) {
             return reactions;
         }
-        var reactions = query("""
+        
+        var positiveReactions = query("""
                        SELECT reaction
                        FROM guild_reactions
-                       WHERE guild_id = ?
+                       WHERE guild_id = ? AND reaction_type = ?
                        """)
-                .single(call().bind(guildId()))
+                .single(call().bind(guildId()).bind(KarmaType.POSITIVE.name()))
                 .mapAs(String.class)
                 .all();
-        this.reactions = new Reactions(this, mainReaction, new HashSet<>(reactions));
+
+        var negativeReactions = query("""
+                       SELECT reaction
+                       FROM guild_reactions
+                       WHERE guild_id = ? AND reaction_type = ?
+                       """)
+                .single(call().bind(guildId()).bind(KarmaType.NEGATIVE.name()))
+                .mapAs(String.class)
+                .all();
+
+        this.reactions = new Reactions(this, mainReaction, new HashSet<>(positiveReactions), new HashSet<>(negativeReactions));
         return this.reactions;
     }
 

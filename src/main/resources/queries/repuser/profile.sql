@@ -16,7 +16,8 @@ WITH
         SELECT
             r.guild_id,
             r.receiver_id,
-            r.donor_id
+            r.donor_id,
+            r.amount
         FROM
             reputation_log r
         WHERE r.received > :date_init
@@ -27,7 +28,7 @@ WITH
         AS (
         SELECT
             r.receiver_id,
-            count(1) AS reputation
+            sum(r.amount) AS reputation
         FROM
             raw_log r
         GROUP BY r.receiver_id
@@ -36,7 +37,7 @@ WITH
         AS (
         SELECT
             r.donor_id,
-            count(1) AS donated
+            sum(r.amount) AS donated
         FROM
             raw_log r
         GROUP BY r.donor_id

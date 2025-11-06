@@ -51,7 +51,7 @@ public class Remove implements SlashHandler {
                                            .settings()
                                            .thanking()
                                            .reactions()
-                                           .reactions()
+                                           .allReactions()
                                            .stream()
                                            .limit(25)
                                            .map(Choice::toChoice)
