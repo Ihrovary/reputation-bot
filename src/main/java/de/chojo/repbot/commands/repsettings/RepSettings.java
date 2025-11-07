@@ -34,10 +34,10 @@ public class RepSettings extends SlashCommand {
                                 .argument(text("name", "command.repsettings.name.set.options.name.description").minLength(1).maxLength(16).asRequired()))
                         .subCommand(sub("reset", "command.repsettings.name.reset.description")
                                 .handler(new Reset(guildRepository))))
-                .subCommand(sub("amounts", "command.repsettings.amounts.set.description")
+                .subCommand(sub("amounts", "command.repsettings.amounts.description")
                         .handler(new SetRepAmounts(guildRepository))
-                        .argument(integer("positive", "command.repsettings.amounts.set.positive.description").min(1).max(100).asRequired())
-                        .argument(integer("negative", "command.repsettings.amounts.set.negative.description").min(1).max(100).asRequired()))
+                        .argument(integer("positive", "command.repsettings.amounts.options.positive.description").min(1).max(100).asRequired())
+                        .argument(integer("negative", "command.repsettings.amounts.options.negative.description").min(1).max(100).asRequired()))
         );
     }
 }
