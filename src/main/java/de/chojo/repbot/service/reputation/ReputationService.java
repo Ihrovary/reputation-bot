@@ -113,11 +113,11 @@ public class ReputationService {
 
         var context = getContext(donor, message, type, settings);
 
-        if (isSelfVote(donor, receiver, message)) {
-            analyzer.log(message, SubmitResult.of(SubmitResultType.SELF_VOTE));
-            log.trace("Detected self vote on {}", message.getIdLong());
-            return false;
-        }
+        // if (isSelfVote(donor, receiver, message)) {
+        //     analyzer.log(message, SubmitResult.of(SubmitResultType.SELF_VOTE));
+        //     log.trace("Detected self vote on {}", message.getIdLong());
+        //     return false;
+        // }
 
         if (assertAbuseProtection(guild, donor, receiver, message, refMessage, context)) return false;
 

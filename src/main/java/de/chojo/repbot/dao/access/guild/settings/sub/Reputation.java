@@ -131,6 +131,22 @@ public class Reputation implements GuildHolder {
         return this.directActive;
     }
 
+    public int positiveAmount(int amount) {
+        var result = set("positive_amount", stmt -> stmt.bind(amount));
+        if (result) {
+            this.positiveAmount = amount;
+        }
+        return this.positiveAmount;
+    }
+
+    public int negativeAmount(int amount) {
+        var result = set("negative_amount", stmt -> stmt.bind(amount));
+        if (result) {
+            this.negativeAmount = amount;
+        }
+        return this.negativeAmount;
+    }
+
     public int getAmount(KarmaType type) {
         return switch (type) {
             case POSITIVE -> positiveAmount;
@@ -145,13 +161,10 @@ public class Reputation implements GuildHolder {
                 getSetting("command.repsettings.info.message.option.bymention.name", isMentionActive()),
                 getSetting("command.repsettings.info.message.option.byfuzzy.name", isFuzzyActive()),
                 getSetting("command.repsettings.info.message.option.byembed.name", isEmbedActive()),
-                getSetting("command.repsettings.info.message.option.skipsingletarget.name", settings.reputation()
-                                                                                                    .isDirectActive()),
-                getSetting("command.repsettings.info.message.option.reputationmode.name", settings.general()
-                                                                                                  .reputationMode()
-                                                                                                  .localeCode()),
-                getSetting("karmatype.positive", positiveAmount),
-                getSetting("karmatype.negative", negativeAmount)
+                getSetting("command.repsettings.info.message.option.skipsingletarget.name", settings.reputation().isDirectActive()),
+                getSetting("command.repsettings.info.message.option.reputationmode.name", settings.general().reputationMode().localeCode()),
+                getSetting("command.repsettings.info.message.option.positiveAmount.name", positiveAmount),
+                getSetting("command.repsettings.info.message.option.negativeAmount.name", negativeAmount)
         );
 
         return String.join("\n", setting);
@@ -182,8 +195,7 @@ public class Reputation implements GuildHolder {
     private boolean set(String parameter, Function<Call, Call> builder) {
         return query("""
                 INSERT INTO reputation_settings(guild_id, %s) VALUES (?, ?)
-                ON CONFLICT(guild_id)
-                    DO UPDATE SET %s = excluded.%s;
+                ON CONFLICT(guild_id) DO UPDATE SET %s = excluded.%s;
                 """, parameter, parameter, parameter)
                 .single(builder.apply(call().bind(guildId())))
                 .insert()
