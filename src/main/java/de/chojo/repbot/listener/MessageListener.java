@@ -21,8 +21,10 @@ import de.chojo.repbot.service.RepBotCachePolicy;
 import de.chojo.repbot.service.reputation.KarmaType;
 import de.chojo.repbot.service.reputation.ReputationService;
 import de.chojo.repbot.service.reputation.SubmitResult;
+import de.chojo.repbot.service.reputation.SubmitResultMessage;
 import de.chojo.repbot.service.reputation.SubmitResultType;
 import de.chojo.repbot.util.PermissionErrorHandler;
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageType;
@@ -32,11 +34,17 @@ import net.dv8tion.jda.api.events.channel.ChannelCreateEvent;
 import net.dv8tion.jda.api.events.message.MessageBulkDeleteEvent;
 import net.dv8tion.jda.api.events.message.MessageDeleteEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
+import net.dv8tion.jda.api.exceptions.ErrorResponseException;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.requests.ErrorResponse;
+import net.dv8tion.jda.api.requests.RestAction;
+
+import java.awt.Color;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 
 import java.util.LinkedHashSet;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.slf4j.LoggerFactory.getLogger;
@@ -153,16 +161,18 @@ public class MessageListener extends ListenerAdapter {
             switch (resultType) {
                 case FUZZY -> {
                     if (!settings.reputation().isFuzzyActive()) continue;
-                    reputationService.submitReputation(guild, donator, receiver, message, null, resultType, KarmaType.POSITIVE);
+                    var submitResult = reputationService.submitReputation(guild, donator, receiver, message, null, resultType, KarmaType.POSITIVE);
+                    sendSubmitResultMessage(event, submitResult);
                 }
                 case MENTION -> {
                     if (!settings.reputation().isMentionActive()) continue;
-                    reputationService.submitReputation(guild, donator, receiver, message, null, resultType, KarmaType.POSITIVE);
+                    var submitResult = reputationService.submitReputation(guild, donator, receiver, message, null, resultType, KarmaType.POSITIVE);
+                    sendSubmitResultMessage(event, submitResult);
                 }
                 case ANSWER -> {
                     if (!settings.reputation().isAnswerActive()) continue;
-                    reputationService.submitReputation(
-                            guild, donator, receiver, message, match.asAnswer().referenceMessage(), resultType, KarmaType.POSITIVE);
+                    var submitResult = reputationService.submitReputation(guild, donator, receiver, message, match.asAnswer().referenceMessage(), resultType, KarmaType.POSITIVE);
+                    sendSubmitResultMessage(event, submitResult);
                 }
                 default -> log.error(LogNotify.NOTIFY_ADMIN, "Unknown thank type {}", resultType);
             }
@@ -182,7 +192,7 @@ public class MessageListener extends ListenerAdapter {
         }
 
         var members = recentMembers.stream()
-                                   .filter(receiver -> reputationService.canGiveReputation(message, message.getMember(), receiver, message.getGuild(), settings))
+                                   .filter(receiver -> reputationService.canGiveReputation(message, message.getMember(), receiver, message.getGuild(), settings).isSuccess())
                                    .filter(receiver -> !settings.abuseProtection().isReceiverLimit(receiver))
                                    .limit(10)
                                    .collect(Collectors.toList());
@@ -203,5 +213,20 @@ public class MessageListener extends ListenerAdapter {
             settings.repGuild().reputation().analyzer().log(message, SubmitResult.of(SubmitResultType.EMBED_SEND));
             reputationVoteListener.registerVote(message, members, settings);
         }
+    }
+
+    private void sendSubmitResultMessage(MessageReceivedEvent event, SubmitResultMessage result) {
+        if (result.isSuccess()) return;
+        if (result.message() == null || result.message().isEmpty()) return;
+
+        event.getChannel()
+            .sendMessageEmbeds(new EmbedBuilder()
+                .setDescription(result.message())
+                .setColor(Color.RED)
+                .build())
+            .mention(event.getMember())
+            .delay(30, TimeUnit.SECONDS)
+            .flatMap(Message::delete)
+            .queue(RestAction.getDefaultSuccess(), ErrorResponseException.ignore(ErrorResponse.UNKNOWN_MESSAGE)); 
     }
 }

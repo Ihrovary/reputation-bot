@@ -17,11 +17,15 @@ import de.chojo.repbot.dao.provider.GuildRepository;
 import de.chojo.repbot.dao.snapshots.ReputationLogEntry;
 import de.chojo.repbot.service.reputation.KarmaType;
 import de.chojo.repbot.service.reputation.ReputationService;
+import de.chojo.repbot.service.reputation.SubmitResultType;
 import de.chojo.repbot.util.PermissionErrorHandler;
+import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Message;
+import java.awt.Color;
 import net.dv8tion.jda.api.entities.User;
+import net.dv8tion.jda.api.events.message.react.GenericMessageReactionEvent;
 import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent;
 import net.dv8tion.jda.api.events.message.react.MessageReactionRemoveAllEvent;
 import net.dv8tion.jda.api.events.message.react.MessageReactionRemoveEmojiEvent;
@@ -71,13 +75,11 @@ public class ReactionListener extends ListenerAdapter {
         var reactionCheck = guildSettings.thanking().reactions().checkReaction(event.getReaction());
         if (reactionCheck == ReactionCheckResult.NOT_RELEVANT) return;
 
-        var karmaType = switch (reactionCheck) {
-            case POSITIVE -> KarmaType.POSITIVE;
-            case NEGATIVE -> KarmaType.NEGATIVE;
-            default -> throw new IllegalArgumentException("Unexpected value: " + reactionCheck);
-        };
-
-        if (isCooldown(event.getMember())) return;
+        if (isCooldown(event.getMember())) {
+            var resultMessage = localizer.localize(SubmitResultType.COOLDOWN_ABUSE.localeKey(), event.getGuild());
+            sendSubmitResultMessage(event, resultMessage, false);
+            return;
+        }
 
         Message message;
         try {
@@ -114,18 +116,28 @@ public class ReactionListener extends ListenerAdapter {
             return;
         }
 
-        if (reputationService.submitReputation(event.getGuild(), event.getMember(), receiver, message, null, ThankType.REACTION, karmaType)) {
+        var karmaType = switch (reactionCheck) {
+            case POSITIVE -> KarmaType.POSITIVE;
+            case NEGATIVE -> KarmaType.NEGATIVE;
+            default -> throw new IllegalArgumentException("Unexpected value: " + reactionCheck);
+        };
+
+        var result = reputationService.submitReputation(event.getGuild(), event.getMember(), receiver, message, null, ThankType.REACTION, karmaType);
+        var isReactionConfirmation = guildSettings.messages().isReactionConfirmation();
+
+        if (result.isSuccess()) {
             reacted(event.getMember());
-            if (guildSettings.messages().isReactionConfirmation()) {
-                event.getChannel().sendMessage(localizer.localize("listener.reaction.confirmation", event.getGuild(),
-                             Replacement.createMention("DONOR", event.getUser()),
-                             Replacement.createMention("RECEIVER", receiver)))
-                     .mention(event.getUser())
-                     .onErrorFlatMap(err -> null)
-                     .delay(30, TimeUnit.SECONDS)
-                     .flatMap(Message::delete)
-                     .onErrorMap(err -> null)
-                     .complete();
+
+            if (isReactionConfirmation) {
+                var confirmationMessage = localizer.localize("listener.reaction.confirmation", event.getGuild(),
+                    Replacement.createMention("DONOR", event.getUser()),
+                    Replacement.createMention("RECEIVER", receiver));
+                sendSubmitResultMessage(event, confirmationMessage, true);
+            }
+        }
+        else {
+            if (isReactionConfirmation) {
+                sendSubmitResultMessage(event, result.message(), false);
             }
         }
     }
@@ -157,12 +169,14 @@ public class ReactionListener extends ListenerAdapter {
                                      .stream()
                                      .filter(entry -> entry.type() == ThankType.REACTION && entry.donorId() == event.getUserIdLong())
                                      .toList();
+                                     
         if (!entries.isEmpty() && guildSettings.messages().isReactionConfirmation()) {
             reputationService.delete(entries, event.getGuildChannel(), event.getGuild());
-            event.getChannel().sendMessage(localizer.localize("listener.reaction.removal", event.getGuild(),
-                         Replacement.create("DONOR", User.fromId(event.getUserId()).getAsMention())))
-                 .delay(30, TimeUnit.SECONDS).flatMap(Message::delete)
-                 .queue(RestAction.getDefaultSuccess(), ErrorResponseException.ignore(ErrorResponse.UNKNOWN_MESSAGE));
+
+            var resultMessage = localizer.localize("listener.reaction.removal", event.getGuild(),
+                         Replacement.create("DONOR", User.fromId(event.getUserId()).getAsMention()));
+
+            sendSubmitResultMessage(event, resultMessage, false);
         }
     }
 
@@ -186,5 +200,19 @@ public class ReactionListener extends ListenerAdapter {
 
     public void reacted(Member member) {
         lastReaction.put(member.getIdLong(), Instant.now());
+    }
+
+    private void sendSubmitResultMessage(GenericMessageReactionEvent event, String message, boolean success) {
+        if (message == null || message.isEmpty()) return;
+
+        event.getChannel()
+            .sendMessageEmbeds(new EmbedBuilder()
+                .setDescription(message)
+                .setColor(success ? Color.GREEN : Color.RED)
+                .build())
+            .mention(event.getUser())
+            .delay(30, TimeUnit.SECONDS)
+            .flatMap(Message::delete)
+            .queue(RestAction.getDefaultSuccess(), ErrorResponseException.ignore(ErrorResponse.UNKNOWN_MESSAGE)); 
     }
 }
