@@ -131,7 +131,8 @@ public class ReactionListener extends ListenerAdapter {
             if (isReactionConfirmation) {
                 var confirmationMessage = localizer.localize("listener.reaction.confirmation", event.getGuild(),
                     Replacement.createMention("DONOR", event.getUser()),
-                    Replacement.createMention("RECEIVER", receiver));
+                    Replacement.createMention("RECEIVER", receiver),
+                    Replacement.create("KARMATYPE", karmaType == KarmaType.POSITIVE ? "+" : "-"));
                 sendSubmitResultMessage(event, confirmationMessage, true);
             }
         }

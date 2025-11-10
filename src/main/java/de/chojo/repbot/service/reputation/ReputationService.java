@@ -119,7 +119,7 @@ public class ReputationService {
             return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.SELF_VOTE.localeKey(), guild));
         }
 
-        var abuseCheck = assertAbuseProtection(guild, donor, receiver, message, refMessage, context);
+        var abuseCheck = assertAbuseProtection(guild, donor, receiver, message, refMessage, context, karmaType);
         if (!abuseCheck.isSuccess()) {
             return abuseCheck;
         }
@@ -172,7 +172,7 @@ public class ReputationService {
         return context;
     }
 
-    private SubmitResultMessage assertAbuseProtection(Guild guild, Member donor, Member receiver, Message message, @Nullable Message refMessage, MessageContext context) {
+    private SubmitResultMessage assertAbuseProtection(Guild guild, Member donor, Member receiver, Message message, @Nullable Message refMessage, MessageContext context, KarmaType karmaType) {
         var repGuild = guildRepository.guild(guild);
         var analyzer = repGuild.reputation().analyzer();
         var settings = repGuild.settings();
@@ -217,7 +217,7 @@ public class ReputationService {
             return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.OUTDATED_MESSAGE.localeKey(), guild));
         }
 
-        if (abuseSettings.isReceiverLimit(receiver)) {
+        if (abuseSettings.isReceiverLimit(receiver, karmaType)) {
             log.trace("Receiver limit is reached on {}", message.getIdLong());
             analyzer.log(message, SubmitResult.of(SubmitResultType.RECEIVER_LIMIT));
             return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.RECEIVER_LIMIT.localeKey(), guild));

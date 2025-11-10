@@ -280,11 +280,25 @@ public class RepUser implements MemberHolder {
                 .orElse(0);
     }
 
+    public int totalReputation() {
+        return query("""
+                SELECT
+                    sum(amount) AS count
+                FROM
+                    reputation_log
+                WHERE guild_id = ? AND receiver_id = ?
+                """)
+                .single(call().bind(guildId()).bind(memberId()))
+                .map(rs -> rs.getInt(1))
+                .first()
+                .orElse(0);
+    }
+
     public List<ChannelStats> mostReceivedChannel(int count) {
         return query("""
                 SELECT
                     channel_id,
-                    sum(amount) AS count
+                    count(1) AS count
                 FROM
                     reputation_log
                 WHERE guild_id = ?
@@ -306,7 +320,7 @@ public class RepUser implements MemberHolder {
         return query("""
                 SELECT
                     channel_id,
-                    sum(amount) AS count
+                    count(1) AS count
                 FROM
                     reputation_log
                 WHERE guild_id = ?

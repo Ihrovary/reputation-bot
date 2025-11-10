@@ -7,6 +7,7 @@ package de.chojo.repbot.dao.access.guild.settings.sub;
 
 import de.chojo.repbot.dao.access.guild.settings.Settings;
 import de.chojo.repbot.dao.components.GuildHolder;
+import de.chojo.repbot.service.reputation.KarmaType;
 import de.chojo.sadu.mapper.wrapper.Row;
 import de.chojo.sadu.queries.api.call.Call;
 import net.dv8tion.jda.api.entities.Guild;
@@ -22,6 +23,7 @@ import static de.chojo.sadu.queries.api.call.Call.call;
 import static de.chojo.sadu.queries.api.query.Query.query;
 
 public class AbuseProtection implements GuildHolder {
+    private static final int MIN_RECEIVED = 0;
     private final Settings settings;
     private int cooldown;
     private CooldownDirection cooldownDirection;
@@ -225,14 +227,17 @@ public class AbuseProtection implements GuildHolder {
     }
 
     /**
-     * Checks if the member has reached the {@link #maxReceived} amount of reputation in the last {@link #maxReceivedHours}.
+     * Checks if the member has reached the {@link #maxReceived} amount of reputation.
      *
      * @param member member to check
      * @return true if the limit is reached
      */
-    public boolean isReceiverLimit(Member member) {
-        if (!isReceiverLimit()) return false;
-        return settings.repGuild().reputation().user(member).countReceived() >= maxReceived;
+    public boolean isReceiverLimit(Member member, KarmaType karmaType) {
+        var receiverReputation = settings.repGuild().reputation().user(member).totalReputation();
+        var newAmount = receiverReputation + settings.reputation().getAmount(karmaType);
+        var isMaxAmountReached = isReceiverLimit() ? newAmount > maxReceived : false;
+
+        return newAmount < MIN_RECEIVED || isMaxAmountReached;
     }
 
     public boolean isDonorLimit() {
