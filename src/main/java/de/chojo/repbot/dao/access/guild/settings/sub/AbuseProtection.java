@@ -233,7 +233,7 @@ public class AbuseProtection implements GuildHolder {
      * @return true if the limit is reached
      */
     public boolean isReceiverLimit(Member member, KarmaType karmaType) {
-        var receiverReputation = settings.repGuild().reputation().user(member).totalReputation();
+        var receiverReputation = settings.repGuild().reputation().user(member).profile().reputation();
         var newAmount = receiverReputation + settings.reputation().getAmount(karmaType);
         var isMaxAmountReached = isReceiverLimit() ? newAmount > maxReceived : false;
 

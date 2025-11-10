@@ -43,18 +43,30 @@ public class RepUser implements MemberHolder {
     private final Gdpr gdpr;
     private final User user;
     private Member member;
+    private static final int INITIAL_REPUTATION = 5;
 
     public RepUser(Reputation reputation, Member member) {
         gdpr = new Gdpr(this);
         this.reputation = reputation;
         this.member = member;
         user = member.getUser();
+        initializeReputationIfNeeded();
     }
 
     public RepUser(Reputation reputation, User user) {
         gdpr = new Gdpr(this);
         this.reputation = reputation;
         this.user = user;
+        initializeReputationIfNeeded();
+    }
+
+    private void initializeReputationIfNeeded() {
+        var profile = profile();
+        if (profile.repOffset() == 0 && profile.received_votes() == 0) {
+            // Only set initial reputation if user has no reputation and no offset
+            log.debug("Set initial reputation {} for user {}", INITIAL_REPUTATION, user().getName());
+            setReputation(INITIAL_REPUTATION);
+        }
     }
 
     public Gdpr gdpr() {

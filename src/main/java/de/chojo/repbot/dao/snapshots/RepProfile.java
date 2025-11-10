@@ -31,11 +31,12 @@ import java.util.stream.Collectors;
  */
 public record RepProfile(RepUser repUser, long rank, long rankDonated, long userId, long reputation, long repOffset,
                          long rawReputation,
-                         long donated) {
+                         long received_votes,
+                         long given_votes) {
     private static final int BAR_SIZE = 20;
 
     public static RepProfile empty(RepUser repuser, User user) {
-        return new RepProfile(repuser, 0, user.getIdLong(), 0, 0, 0, 0, 0);
+        return new RepProfile(repuser, 0, 0, user.getIdLong(), 0, 0, 0, 0, 0);
     }
 
     public static RepProfile buildProfile(RepUser repuser, Row rs) throws SQLException {
@@ -46,33 +47,8 @@ public record RepProfile(RepUser repUser, long rank, long rankDonated, long user
                 rs.getLong("reputation"),
                 rs.getLong("rep_offset"),
                 rs.getLong("raw_reputation"),
-                rs.getLong("donated")
-        );
-    }
-
-    @Deprecated(forRemoval = true)
-    public static RepProfile buildReceivedRanking(Row rs) throws SQLException {
-        return new RepProfile(null,
-                rs.getLong("rank"),
-                0,
-                rs.getLong("user_id"),
-                rs.getLong("reputation"),
-                0,
-                0,
-                0
-        );
-    }
-
-    @Deprecated(forRemoval = true)
-    public static RepProfile buildGivenRanking(Row rs) throws SQLException {
-        return new RepProfile(null,
-                0,
-                rs.getLong("rank_donated"),
-                rs.getLong("user_id"),
-                0,
-                0,
-                0,
-                rs.getLong("donated")
+                rs.getLong("received_votes"),
+                rs.getLong("given_votes")
         );
     }
 
@@ -90,7 +66,8 @@ public record RepProfile(RepUser repUser, long rank, long rankDonated, long user
         var build = getBaseBuilder(configuration, localizer, false);
         build.addField("words.rawReputation", String.valueOf(rawReputation()), true)
              .addField("words.reputationOffset", String.valueOf(repOffset()), true)
-             .addField("words.donated", String.valueOf(donated()), true);
+             .addField("words.votes_received", String.valueOf(received_votes()), true)
+             .addField("words.votes_given", String.valueOf(given_votes()), true);
         return build.build();
     }
 
@@ -125,7 +102,10 @@ public record RepProfile(RepUser repUser, long rank, long rankDonated, long user
         }
         build.addField("words.level", level, true)
              .addField("words.reputation", Format.BOLD.apply(String.valueOf(reputation())), true)
-             .addField("words.donated", Format.BOLD.apply(String.valueOf(donated())), true)
+             .addBlankField(true)
+             .addField("words.votes_given", String.valueOf(given_votes()), true)
+             .addField("words.votes_received", String.valueOf(received_votes()), true)
+             .addBlankField(true)
              .addField("element.profile.nextLevel", "```ANSI%n%s/%s  %s```".formatted(currProgress, nextLevel, progressBar), false)
              .setColor(repUser.member().getColor());
         var badge = configuration.badges().badge((int) rank());

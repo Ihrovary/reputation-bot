@@ -24,20 +24,21 @@ WITH
           AND ( received > :reset_date OR :reset_date::TIMESTAMP IS NULL )
           AND guild_id = :guild_id
            ),
-    rep_count
+    received_votes
         AS (
         SELECT
             r.receiver_id,
+            count(1) AS vote_count,
             sum(r.amount) AS reputation
         FROM
             raw_log r
         GROUP BY r.receiver_id
            ),
-    don_count
+    given_votes
         AS (
         SELECT
             r.donor_id,
-            sum(r.amount) AS donated
+            count(1) AS donated
         FROM
             raw_log r
         GROUP BY r.donor_id
@@ -46,20 +47,22 @@ WITH
     full_log
         AS (
         SELECT
-            coalesce(rep.receiver_id, don.donor_id) AS user_id,
-            coalesce(rep.reputation, 0::BIGINT)     AS reputation,
-            coalesce(don.donated, 0::BIGINT)        AS donated
+            coalesce(rv.receiver_id, gv.donor_id) AS user_id,
+            coalesce(rv.reputation, 0::BIGINT)     AS reputation,
+            coalesce(rv.vote_count, 0::BIGINT)     AS received_votes,
+            coalesce(gv.donated, 0::BIGINT)        AS given_votes
         FROM
-            rep_count rep
-                FULL JOIN don_count don
-                ON rep.receiver_id = don.donor_id
+            received_votes rv
+                FULL JOIN given_votes gv
+                ON rv.receiver_id = gv.donor_id
            ),
     filtered_log
         AS (
         SELECT
             user_id,
             reputation,
-            donated
+            received_votes,
+            given_votes
         FROM
             full_log
         WHERE
@@ -81,7 +84,8 @@ WITH
             coalesce(o.reputation, 0)                             AS rep_offset,
             -- save raw reputation without the offset.
             coalesce(f.reputation, 0)                             AS raw_reputation,
-            coalesce(f.donated, 0)                                AS donated
+            coalesce(f.received_votes, 0)                         AS received_votes,
+            coalesce(f.given_votes, 0)                           AS given_votes
         FROM
             filtered_log f
                 FULL JOIN rep_offset o
@@ -90,12 +94,13 @@ WITH
     ranked AS (
         SELECT
             rank() OVER (ORDER BY reputation DESC) AS rank,
-            rank() OVER (ORDER BY donated DESC)    AS rank_donated,
+            rank() OVER (ORDER BY given_votes DESC)     AS rank_donated,
             user_id,
-            raw_reputation                         AS raw_reputation,
-            donated,
-            rep_offset::BIGINT                     AS rep_offset,
-            reputation::BIGINT                     AS reputation
+            raw_reputation                              AS raw_reputation,
+            received_votes,
+            given_votes,
+            rep_offset::BIGINT                         AS rep_offset,
+            reputation::BIGINT                         AS reputation
         FROM
             offset_reputation rank
            )
@@ -104,7 +109,8 @@ SELECT
     rank_donated,
     user_id,
     raw_reputation,
-    donated,
+    received_votes,
+    given_votes,
     rep_offset,
     reputation
 FROM
