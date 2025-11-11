@@ -18,7 +18,7 @@ import de.chojo.repbot.dao.access.guild.settings.Settings;
 import de.chojo.repbot.dao.provider.GuildRepository;
 import de.chojo.repbot.listener.voting.ReputationVoteListener;
 import de.chojo.repbot.service.RepBotCachePolicy;
-import de.chojo.repbot.service.reputation.KarmaType;
+import de.chojo.repbot.service.reputation.VoteType;
 import de.chojo.repbot.service.reputation.ReputationService;
 import de.chojo.repbot.service.reputation.SubmitResult;
 import de.chojo.repbot.service.reputation.SubmitResultMessage;
@@ -161,17 +161,17 @@ public class MessageListener extends ListenerAdapter {
             switch (resultType) {
                 case FUZZY -> {
                     if (!settings.reputation().isFuzzyActive()) continue;
-                    var submitResult = reputationService.submitReputation(guild, donator, receiver, message, null, resultType, KarmaType.POSITIVE);
+                    var submitResult = reputationService.submitReputation(guild, donator, receiver, message, null, resultType, VoteType.UPVOTE);
                     sendSubmitResultMessage(event, submitResult);
                 }
                 case MENTION -> {
                     if (!settings.reputation().isMentionActive()) continue;
-                    var submitResult = reputationService.submitReputation(guild, donator, receiver, message, null, resultType, KarmaType.POSITIVE);
+                    var submitResult = reputationService.submitReputation(guild, donator, receiver, message, null, resultType, VoteType.UPVOTE);
                     sendSubmitResultMessage(event, submitResult);
                 }
                 case ANSWER -> {
                     if (!settings.reputation().isAnswerActive()) continue;
-                    var submitResult = reputationService.submitReputation(guild, donator, receiver, message, match.asAnswer().referenceMessage(), resultType, KarmaType.POSITIVE);
+                    var submitResult = reputationService.submitReputation(guild, donator, receiver, message, match.asAnswer().referenceMessage(), resultType, VoteType.UPVOTE);
                     sendSubmitResultMessage(event, submitResult);
                 }
                 default -> log.error(LogNotify.NOTIFY_ADMIN, "Unknown thank type {}", resultType);
@@ -193,7 +193,7 @@ public class MessageListener extends ListenerAdapter {
 
         var members = recentMembers.stream()
                                    .filter(receiver -> reputationService.canGiveReputation(message, message.getMember(), receiver, message.getGuild(), settings).isSuccess())
-                                   .filter(receiver -> !settings.abuseProtection().isReceiverLimit(receiver, KarmaType.POSITIVE))
+                                   .filter(receiver -> !settings.abuseProtection().isReceiverLimit(receiver, VoteType.UPVOTE))
                                    .limit(10)
                                    .collect(Collectors.toList());
 
@@ -205,7 +205,7 @@ public class MessageListener extends ListenerAdapter {
 
         if (members.size() == 1 && settings.reputation().isDirectActive()) {
             log.trace("Found single target on {}. Skipping embed", message.getIdLong());
-            reputationService.submitReputation(message.getGuild(), message.getMember(), members.get(0), message, null, ThankType.DIRECT, KarmaType.POSITIVE);
+            reputationService.submitReputation(message.getGuild(), message.getMember(), members.get(0), message, null, ThankType.DIRECT, VoteType.UPVOTE);
             return;
         }
 

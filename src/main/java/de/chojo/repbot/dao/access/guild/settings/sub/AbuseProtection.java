@@ -7,7 +7,7 @@ package de.chojo.repbot.dao.access.guild.settings.sub;
 
 import de.chojo.repbot.dao.access.guild.settings.Settings;
 import de.chojo.repbot.dao.components.GuildHolder;
-import de.chojo.repbot.service.reputation.KarmaType;
+import de.chojo.repbot.service.reputation.VoteType;
 import de.chojo.sadu.mapper.wrapper.Row;
 import de.chojo.sadu.queries.api.call.Call;
 import net.dv8tion.jda.api.entities.Guild;
@@ -232,9 +232,9 @@ public class AbuseProtection implements GuildHolder {
      * @param member member to check
      * @return true if the limit is reached
      */
-    public boolean isReceiverLimit(Member member, KarmaType karmaType) {
+    public boolean isReceiverLimit(Member member, VoteType voteType) {
         var receiverReputation = settings.repGuild().reputation().user(member).profile().reputation();
-        var newAmount = receiverReputation + settings.reputation().getAmount(karmaType);
+        var newAmount = receiverReputation + settings.reputation().getAmount(voteType);
         var isMaxAmountReached = isReceiverLimit() ? newAmount > maxReceived : false;
 
         return newAmount < MIN_RECEIVED || isMaxAmountReached;

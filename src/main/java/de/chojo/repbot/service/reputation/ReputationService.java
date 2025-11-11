@@ -77,7 +77,7 @@ public class ReputationService {
      * @param type       type of reputation source
      * @return true if the reputation was counted and is valid
      */
-    public SubmitResultMessage submitReputation(Guild guild, Member donor, @Nullable Member receiver, Message message, @Nullable Message refMessage, ThankType type, KarmaType karmaType) {
+    public SubmitResultMessage submitReputation(Guild guild, Member donor, @Nullable Member receiver, Message message, @Nullable Message refMessage, ThankType type, VoteType voteType) {
         var repGuild = guildRepository.guild(guild);
         log.trace("Submitting reputation for message {} of type {}", message.getIdLong(), type);
         if (receiver == null) {
@@ -119,12 +119,12 @@ public class ReputationService {
             return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.SELF_VOTE.localeKey(), guild));
         }
 
-        var abuseCheck = assertAbuseProtection(guild, donor, receiver, message, refMessage, context, karmaType);
+        var abuseCheck = assertAbuseProtection(guild, donor, receiver, message, refMessage, context, voteType);
         if (!abuseCheck.isSuccess()) {
             return abuseCheck;
         }
 
-        var amount = settings.reputation().getAmount(karmaType);
+        var amount = settings.reputation().getAmount(voteType);
         boolean success = log(guild, donor, receiver, message, refMessage, type, amount, settings);
 
         var result = success ? SubmitResultMessage.Success() : SubmitResultMessage.Fail();
@@ -172,7 +172,7 @@ public class ReputationService {
         return context;
     }
 
-    private SubmitResultMessage assertAbuseProtection(Guild guild, Member donor, Member receiver, Message message, @Nullable Message refMessage, MessageContext context, KarmaType karmaType) {
+    private SubmitResultMessage assertAbuseProtection(Guild guild, Member donor, Member receiver, Message message, @Nullable Message refMessage, MessageContext context, VoteType voteType) {
         var repGuild = guildRepository.guild(guild);
         var analyzer = repGuild.reputation().analyzer();
         var settings = repGuild.settings();
@@ -217,7 +217,7 @@ public class ReputationService {
             return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.OUTDATED_MESSAGE.localeKey(), guild));
         }
 
-        if (abuseSettings.isReceiverLimit(receiver, karmaType)) {
+        if (abuseSettings.isReceiverLimit(receiver, voteType)) {
             log.trace("Receiver limit is reached on {}", message.getIdLong());
             analyzer.log(message, SubmitResult.of(SubmitResultType.RECEIVER_LIMIT));
             return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.RECEIVER_LIMIT.localeKey(), guild));

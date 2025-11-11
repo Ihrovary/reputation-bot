@@ -12,7 +12,7 @@ import de.chojo.jdautil.util.Premium;
 import de.chojo.jdautil.wrapper.EventContext;
 import de.chojo.repbot.config.Configuration;
 import de.chojo.repbot.dao.provider.GuildRepository;
-import de.chojo.repbot.service.reputation.KarmaType;
+import de.chojo.repbot.service.reputation.VoteType;
 import de.chojo.repbot.util.Parser;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
@@ -47,14 +47,14 @@ public class Add implements SlashHandler {
         }
         
         var emote = emoteOption.getAsString();
-        var type = Parser.parseEnum(typeOption.getAsString(), KarmaType.class);
+        var type = Parser.parseEnum(typeOption.getAsString(), VoteType.class);
         var checkingMessage = Objects.requireNonNull(context.localize("command.reactions.message.checking"));
         var message = event.reply(checkingMessage)
                          .flatMap(InteractionHook::retrieveOriginal).complete();
         handleAddCheckResult(event.getGuild(), context, message, emote, type);
     }
 
-    private void handleAddCheckResult(Guild guild, EventContext context, Message message, String emote, KarmaType type) {
+    private void handleAddCheckResult(Guild guild, EventContext context, Message message, String emote, VoteType type) {
         var reactions = guildRepository.guild(guild).settings().thanking().reactions();
         var result = checkEmoji(message, emote);
         switch (result.result()) {
@@ -76,11 +76,11 @@ public class Add implements SlashHandler {
     
     @Override
     public void onAutoComplete(CommandAutoCompleteInteractionEvent event, EventContext context) {
-        event.replyChoices(Completion.complete(event.getFocusedOption().getValue(), KarmaType.class)).queue();
+        event.replyChoices(Completion.complete(event.getFocusedOption().getValue(), VoteType.class)).queue();
 
         switch (event.getFocusedOption().getName()) {
             case "type" -> {
-                event.replyChoices(Completion.complete(event.getFocusedOption().getValue(), KarmaType.class)).queue();
+                event.replyChoices(Completion.complete(event.getFocusedOption().getValue(), VoteType.class)).queue();
             }
             default -> event.replyChoices().complete();
         }

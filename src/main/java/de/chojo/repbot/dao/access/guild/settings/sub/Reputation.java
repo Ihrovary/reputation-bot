@@ -7,7 +7,7 @@ package de.chojo.repbot.dao.access.guild.settings.sub;
 
 import de.chojo.repbot.dao.access.guild.settings.Settings;
 import de.chojo.repbot.dao.components.GuildHolder;
-import de.chojo.repbot.service.reputation.KarmaType;
+import de.chojo.repbot.service.reputation.VoteType;
 import de.chojo.sadu.mapper.wrapper.Row;
 import de.chojo.sadu.queries.api.call.Call;
 import net.dv8tion.jda.api.entities.Guild;
@@ -147,10 +147,10 @@ public class Reputation implements GuildHolder {
         return this.negativeAmount;
     }
 
-    public int getAmount(KarmaType type) {
+    public int getAmount(VoteType type) {
         return switch (type) {
-            case POSITIVE -> positiveAmount;
-            case NEGATIVE -> negativeAmount;
+            case UPVOTE -> positiveAmount;
+            case DOWNVOTE -> negativeAmount;
         };
     }
 

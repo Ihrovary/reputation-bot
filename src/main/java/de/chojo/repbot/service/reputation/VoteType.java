@@ -5,9 +5,9 @@
  */
 package de.chojo.repbot.service.reputation;
 
-public enum KarmaType {
-    POSITIVE,
-    NEGATIVE;
+public enum VoteType {
+    UPVOTE,
+    DOWNVOTE;
 
     public String localCode() {
         return "$%s$".formatted(getClass().getSimpleName().toLowerCase() + "." + this.name().toLowerCase());

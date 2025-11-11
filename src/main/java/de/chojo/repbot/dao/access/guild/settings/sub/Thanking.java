@@ -11,7 +11,7 @@ import de.chojo.repbot.dao.access.guild.settings.sub.thanking.DonorRoles;
 import de.chojo.repbot.dao.access.guild.settings.sub.thanking.Reactions;
 import de.chojo.repbot.dao.access.guild.settings.sub.thanking.ReceiverRoles;
 import de.chojo.repbot.dao.access.guild.settings.sub.thanking.Thankwords;
-import de.chojo.repbot.service.reputation.KarmaType;
+import de.chojo.repbot.service.reputation.VoteType;
 import de.chojo.repbot.dao.components.GuildHolder;
 import de.chojo.sadu.mapper.wrapper.Row;
 import net.dv8tion.jda.api.entities.Guild;
@@ -119,7 +119,7 @@ public class Thanking  implements GuildHolder {
                        FROM guild_reactions
                        WHERE guild_id = ? AND reaction_type = ?
                        """)
-                .single(call().bind(guildId()).bind(KarmaType.POSITIVE.name()))
+                .single(call().bind(guildId()).bind(VoteType.UPVOTE.name()))
                 .mapAs(String.class)
                 .all();
 
@@ -128,7 +128,7 @@ public class Thanking  implements GuildHolder {
                        FROM guild_reactions
                        WHERE guild_id = ? AND reaction_type = ?
                        """)
-                .single(call().bind(guildId()).bind(KarmaType.NEGATIVE.name()))
+                .single(call().bind(guildId()).bind(VoteType.DOWNVOTE.name()))
                 .mapAs(String.class)
                 .all();
 

@@ -15,7 +15,7 @@ import de.chojo.repbot.config.Configuration;
 import de.chojo.repbot.dao.access.guild.settings.sub.thanking.ReactionCheckResult;
 import de.chojo.repbot.dao.provider.GuildRepository;
 import de.chojo.repbot.dao.snapshots.ReputationLogEntry;
-import de.chojo.repbot.service.reputation.KarmaType;
+import de.chojo.repbot.service.reputation.VoteType;
 import de.chojo.repbot.service.reputation.ReputationService;
 import de.chojo.repbot.service.reputation.SubmitResultType;
 import de.chojo.repbot.util.PermissionErrorHandler;
@@ -116,13 +116,13 @@ public class ReactionListener extends ListenerAdapter {
             return;
         }
 
-        var karmaType = switch (reactionCheck) {
-            case POSITIVE -> KarmaType.POSITIVE;
-            case NEGATIVE -> KarmaType.NEGATIVE;
+        var voteType = switch (reactionCheck) {
+            case POSITIVE -> VoteType.UPVOTE;
+            case NEGATIVE -> VoteType.DOWNVOTE;
             default -> throw new IllegalArgumentException("Unexpected value: " + reactionCheck);
         };
 
-        var result = reputationService.submitReputation(event.getGuild(), event.getMember(), receiver, message, null, ThankType.REACTION, karmaType);
+        var result = reputationService.submitReputation(event.getGuild(), event.getMember(), receiver, message, null, ThankType.REACTION, voteType);
         var isReactionConfirmation = guildSettings.messages().isReactionConfirmation();
 
         if (result.isSuccess()) {
@@ -132,7 +132,7 @@ public class ReactionListener extends ListenerAdapter {
                 var confirmationMessage = localizer.localize("listener.reaction.confirmation", event.getGuild(),
                     Replacement.createMention("DONOR", event.getUser()),
                     Replacement.createMention("RECEIVER", receiver),
-                    Replacement.create("KARMATYPE", karmaType == KarmaType.POSITIVE ? "+" : "-"));
+                    Replacement.create("VOTETYPE", voteType == VoteType.UPVOTE ? "+" : "-"));
                 sendSubmitResultMessage(event, confirmationMessage, true);
             }
         }

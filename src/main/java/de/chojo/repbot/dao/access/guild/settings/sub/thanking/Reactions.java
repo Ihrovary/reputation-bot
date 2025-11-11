@@ -8,7 +8,7 @@ package de.chojo.repbot.dao.access.guild.settings.sub.thanking;
 import de.chojo.jdautil.parsing.Verifier;
 import de.chojo.repbot.dao.access.guild.settings.sub.Thanking;
 import de.chojo.repbot.dao.components.GuildHolder;
-import de.chojo.repbot.service.reputation.KarmaType;
+import de.chojo.repbot.service.reputation.VoteType;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.MessageReaction;
 import net.dv8tion.jda.api.entities.emoji.CustomEmoji;
@@ -97,7 +97,7 @@ public class Reactions implements GuildHolder {
                         .collect(Collectors.toList());
     }
 
-    public boolean add(String reaction, KarmaType type) {
+    public boolean add(String reaction, VoteType type) {
         var result = query("""
                 INSERT INTO guild_reactions(guild_id, reaction, reaction_type) VALUES (?,?,?)
                     ON CONFLICT(guild_id, reaction)
@@ -107,7 +107,7 @@ public class Reactions implements GuildHolder {
                 .update()
                 .changed();
         if (result) {
-            if (type == KarmaType.POSITIVE) {
+            if (type == VoteType.UPVOTE) {
                 reactions.add(reaction);
             } else {
                 negativeReactions.add(reaction);
