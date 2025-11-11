@@ -132,7 +132,7 @@ public class ReactionListener extends ListenerAdapter {
                 var confirmationMessage = localizer.localize("listener.reaction.confirmation", event.getGuild(),
                     Replacement.createMention("DONOR", event.getUser()),
                     Replacement.createMention("RECEIVER", receiver),
-                    Replacement.create("VOTETYPE", voteType == VoteType.UPVOTE ? "+" : "-"));
+                    Replacement.create("VOTETYPE", voteType.localeKey()));
                 sendSubmitResultMessage(event, confirmationMessage, true);
             }
         }

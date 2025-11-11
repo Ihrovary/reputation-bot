@@ -27,7 +27,10 @@ public enum SubmitResultType {
     SUBMITTING("submitresult.submitting"),
     ALL_COOLDOWN("submitresult.allcooldown"),
     COOLDOWN_ABUSE("submitresult.cooldownabuse"),
-    COOLDOWN_RECENT_ACTIVE("submitresult.cooldownrecent");
+    COOLDOWN_RECENT_ACTIVE("submitresult.cooldownrecent"),
+    NO_DONOR_VOTE_ACCESS("submitresult.nodonorvoteaccess"),
+    NO_DONOR_UPVOTE_ACCESS("submitresult.nodonorupvoteaccess"),
+    NO_DONOR_DOWNVOTE_ACCESS("submitresult.nodonordownvoteaccess");
 
     private final String localeKey;
 

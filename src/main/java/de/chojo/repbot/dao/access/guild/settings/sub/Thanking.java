@@ -11,12 +11,14 @@ import de.chojo.repbot.dao.access.guild.settings.sub.thanking.DonorRoles;
 import de.chojo.repbot.dao.access.guild.settings.sub.thanking.Reactions;
 import de.chojo.repbot.dao.access.guild.settings.sub.thanking.ReceiverRoles;
 import de.chojo.repbot.dao.access.guild.settings.sub.thanking.Thankwords;
+import de.chojo.repbot.service.reputation.VoteAccessType;
 import de.chojo.repbot.service.reputation.VoteType;
 import de.chojo.repbot.dao.components.GuildHolder;
 import de.chojo.sadu.mapper.wrapper.Row;
 import net.dv8tion.jda.api.entities.Guild;
 
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.HashSet;
 
 import static de.chojo.sadu.queries.api.call.Call.call;
@@ -79,16 +81,30 @@ public class Thanking  implements GuildHolder {
         if (donorRoles != null) {
             return donorRoles;
         }
-        var roles = query("""
-                       SELECT role_id
+        var rows = query("""
+                       SELECT role_id, vote_access_type
                        FROM donor_roles
                        WHERE guild_id = ?
                        """)
                 .single(call().bind(guildId()))
-                .mapAs(Long.class)
+                .map(r -> java.util.Map.entry(r.getLong("role_id"), r.getString("vote_access_type")))
                 .all();
 
-        donorRoles = new DonorRoles(this, new HashSet<>(roles));
+        var accessRoles = new HashMap<Long, de.chojo.repbot.service.reputation.VoteAccessType>();
+        for (var e : rows) {
+            if (e.getValue() != null) {
+                try {
+                    accessRoles.put(e.getKey(), de.chojo.repbot.service.reputation.VoteAccessType.valueOf(e.getValue()));
+                } catch (IllegalArgumentException ex) {
+                    // ignore unknown values and fall back to default (BOTH)
+                }
+            } else {
+                // default to BOTH if DB value missing
+                accessRoles.put(e.getKey(), de.chojo.repbot.service.reputation.VoteAccessType.BOTH);
+            }
+        }
+
+        donorRoles = new DonorRoles(this, accessRoles);
         return donorRoles;
     }
 
@@ -96,16 +112,29 @@ public class Thanking  implements GuildHolder {
         if (receiverRoles != null) {
             return receiverRoles;
         }
-        var roles = query("""
-                       SELECT role_id
+        var rows = query("""
+                       SELECT role_id, vote_access_type
                        FROM receiver_roles
                        WHERE guild_id = ?
                        """)
                 .single(call().bind(guildId()))
-                .mapAs(Long.class)
+                .map(r -> java.util.Map.entry(r.getLong("role_id"), r.getString("vote_access_type")))
                 .all();
 
-        receiverRoles = new ReceiverRoles(this, new HashSet<>(roles));
+        var accessRoles = new HashMap<Long, VoteAccessType>();
+        for (var e : rows) {
+            if (e.getValue() != null) {
+                try {
+                    accessRoles.put(e.getKey(), VoteAccessType.valueOf(e.getValue()));
+                } catch (IllegalArgumentException ex) {
+                    // ignore unknown values and fall back to default (BOTH)
+                }
+            } else {
+                accessRoles.put(e.getKey(), VoteAccessType.BOTH); // default to BOTH if DB value missing
+            }
+        }
+        
+        receiverRoles = new ReceiverRoles(this, accessRoles);
         return receiverRoles;
     }
 

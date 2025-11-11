@@ -6,10 +6,16 @@
 package de.chojo.repbot.service.reputation;
 
 public enum VoteType {
-    UPVOTE,
-    DOWNVOTE;
+    UPVOTE("vote.upvote"),
+    DOWNVOTE("vote.downvote");
 
-    public String localCode() {
-        return "$%s$".formatted(getClass().getSimpleName().toLowerCase() + "." + this.name().toLowerCase());
+    private final String localeKey;
+
+    VoteType(String localeKey) {
+        this.localeKey = localeKey;
+    }
+
+    public String localeKey() {
+        return localeKey;
     }
 }

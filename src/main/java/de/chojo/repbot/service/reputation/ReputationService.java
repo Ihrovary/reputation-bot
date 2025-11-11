@@ -192,8 +192,8 @@ public class ReputationService {
             return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.DONOR_NOT_IN_CONTEXT.localeKey(), guild, Replacement.createMention(donor)));
         }
 
-        // Abuse protection: Cooldown
-        var canGiveReputationResult = canGiveReputation(message, donor, receiver, guild, settings);
+        // Abuse protection: Cooldown and Role Access
+        var canGiveReputationResult = canGiveReputation(message, donor, receiver, guild, settings, voteType);
         if (!canGiveReputationResult.isSuccess()) {
             log.trace("Cooldown active on {}", message.getIdLong());
             return canGiveReputationResult;
@@ -342,7 +342,7 @@ public class ReputationService {
         return false;
     }
 
-    public SubmitResultMessage canGiveReputation(Message message, Member donor, Member receiver, Guild guild, Settings settings) {
+    public SubmitResultMessage canGiveReputation(Message message, Member donor, Member receiver, Guild guild, Settings settings, VoteType voteType) {
         var repGuild = settings.repGuild();
         var analyzer = repGuild.reputation().analyzer();
         // block cooldown
@@ -374,15 +374,46 @@ public class ReputationService {
             }
         }
 
+        var hasRoleAccessResult = hasRoleAccess(message, donor, receiver, guild, settings, voteType);
+        if (!hasRoleAccessResult.isSuccess()) {
+            return hasRoleAccessResult;
+        }
+
+        return SubmitResultMessage.Success();
+    }
+
+    
+    private SubmitResultMessage hasRoleAccess(Message message, Member donor, Member receiver, Guild guild, Settings settings, VoteType voteType) {
+        var repGuild = settings.repGuild();
+        var analyzer = repGuild.reputation().analyzer();
+
         if (!settings.thanking().receiverRoles().hasRole(receiver)) {
             analyzer.log(message, SubmitResult.of(SubmitResultType.NO_RECEIVER_ROLE, Replacement.createMention(receiver)));
             log.trace("The receiver does not have a receiver role.");
             return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.NO_RECEIVER_ROLE.localeKey(), guild, Replacement.createMention(receiver)));
         }
-        if (!settings.thanking().donorRoles().hasRole(donor)) {
-            analyzer.log(message, SubmitResult.of(SubmitResultType.NO_DONOR_ROLE, Replacement.createMention(donor)));
-            log.trace("The donor does not have a donor role.");
-            return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.NO_DONOR_ROLE.localeKey(), guild, Replacement.createMention(donor)));
+
+        var donorRoleAccess = settings.thanking().donorRoles().hasRole(donor, voteType);
+        
+        switch (donorRoleAccess) {
+            case VoteAccessType.BOTH: {
+                return SubmitResultMessage.Success();
+            }
+            case VoteAccessType.NONE: {
+                analyzer.log(message, SubmitResult.of(SubmitResultType.NO_DONOR_VOTE_ACCESS, Replacement.createMention(donor)));
+                log.trace("The donor does not have permission to upvote or downvote.");
+                return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.NO_DONOR_VOTE_ACCESS.localeKey(), guild, Replacement.createMention(donor)));
+            }
+            case VoteAccessType.UPVOTE_ONLY: {
+                analyzer.log(message, SubmitResult.of(SubmitResultType.NO_DONOR_DOWNVOTE_ACCESS, Replacement.createMention(donor)));
+                log.trace("The donor does not have permission to upvote.");
+                return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.NO_DONOR_DOWNVOTE_ACCESS.localeKey(), guild, Replacement.createMention(donor)));
+            }
+            case VoteAccessType.DOWNVOTE_ONLY: {
+                analyzer.log(message, SubmitResult.of(SubmitResultType.NO_DONOR_UPVOTE_ACCESS, Replacement.createMention(donor)));
+                log.trace("The donor does not have permission to downvote.");
+                return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.NO_DONOR_UPVOTE_ACCESS.localeKey(), guild, Replacement.createMention(donor)));
+            }
         }
 
         return SubmitResultMessage.Success();

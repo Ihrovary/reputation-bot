@@ -14,3 +14,7 @@ ALTER TABLE repbot_schema.reputation_settings
 -- Add reaction_type column to guild_reactions table for upvote/downvote reactions
 ALTER TABLE repbot_schema.guild_reactions
     ADD COLUMN IF NOT EXISTS reaction_type VARCHAR(50) NOT NULL DEFAULT 'UPVOTE';
+
+-- add vote_access_type to donor_roles
+ALTER TABLE repbot_schema.donor_roles
+    ADD COLUMN IF NOT EXISTS vote_access_type TEXT DEFAULT 'BOTH' NOT NULL;
