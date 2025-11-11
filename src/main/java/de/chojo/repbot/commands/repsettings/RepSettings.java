@@ -36,8 +36,8 @@ public class RepSettings extends SlashCommand {
                                 .handler(new Reset(guildRepository))))
                 .subCommand(sub("amounts", "command.repsettings.amounts.description")
                         .handler(new SetRepAmounts(guildRepository))
-                        .argument(integer("positive", "command.repsettings.amounts.options.positive.description").min(1).max(100).asRequired())
-                        .argument(integer("negative", "command.repsettings.amounts.options.negative.description").min(1).max(100).asRequired()))
+                        .argument(integer("upvote", "command.repsettings.amounts.options.upvote.description").min(1).max(100).asRequired())
+                        .argument(integer("downvote", "command.repsettings.amounts.options.downvote.description").min(1).max(100).asRequired()))
         );
     }
 }

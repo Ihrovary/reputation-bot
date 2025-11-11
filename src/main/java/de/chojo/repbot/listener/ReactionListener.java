@@ -117,8 +117,8 @@ public class ReactionListener extends ListenerAdapter {
         }
 
         var voteType = switch (reactionCheck) {
-            case POSITIVE -> VoteType.UPVOTE;
-            case NEGATIVE -> VoteType.DOWNVOTE;
+            case UPVOTE -> VoteType.UPVOTE;
+            case DOWNVOTE -> VoteType.DOWNVOTE;
             default -> throw new IllegalArgumentException("Unexpected value: " + reactionCheck);
         };
 

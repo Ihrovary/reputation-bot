@@ -28,14 +28,14 @@ public class Reputation implements GuildHolder {
     private boolean fuzzyActive;
     private boolean embedActive;
     private boolean directActive;
-    private int positiveAmount;
-    private int negativeAmount;
+    private int upvoteAmount;
+    private int downvoteAmount;
 
     public Reputation(Settings settings) {
         this(settings, true, true, true, true, true, false, 1, -1);
     }
 
-    public Reputation(Settings settings, boolean reactionActive, boolean answerActive, boolean mentionActive, boolean fuzzyActive, boolean embedActive, boolean directActive, int positiveAmount, int negativeAmount) {
+    public Reputation(Settings settings, boolean reactionActive, boolean answerActive, boolean mentionActive, boolean fuzzyActive, boolean embedActive, boolean directActive, int upvoteAmount, int downvoteAmount) {
         this.settings = settings;
         this.reactionActive = reactionActive;
         this.answerActive = answerActive;
@@ -43,8 +43,8 @@ public class Reputation implements GuildHolder {
         this.fuzzyActive = fuzzyActive;
         this.embedActive = embedActive;
         this.directActive = directActive;
-        this.positiveAmount = positiveAmount;
-        this.negativeAmount = negativeAmount;
+        this.upvoteAmount = upvoteAmount;
+        this.downvoteAmount = downvoteAmount;
     }
 
     public static Reputation build(Settings settings, Row rs) throws SQLException {
@@ -55,8 +55,8 @@ public class Reputation implements GuildHolder {
                 rs.getBoolean("fuzzy_active"),
                 rs.getBoolean("embed_active"),
                 rs.getBoolean("skip_single_embed"),
-                rs.getInt("positive_amount"),
-                rs.getInt("negative_amount"));
+                rs.getInt("upvote_amount"),
+                rs.getInt("downvote_amount"));
     }
 
     public boolean isReactionActive() {
@@ -131,26 +131,26 @@ public class Reputation implements GuildHolder {
         return this.directActive;
     }
 
-    public int positiveAmount(int amount) {
-        var result = set("positive_amount", stmt -> stmt.bind(amount));
+    public int upvoteAmount(int amount) {
+        var result = set("upvote_amount", stmt -> stmt.bind(amount));
         if (result) {
-            this.positiveAmount = amount;
+            this.upvoteAmount = amount;
         }
-        return this.positiveAmount;
+        return this.upvoteAmount;
     }
 
-    public int negativeAmount(int amount) {
-        var result = set("negative_amount", stmt -> stmt.bind(amount));
+    public int downvoteAmount(int amount) {
+        var result = set("downvote_amount", stmt -> stmt.bind(amount));
         if (result) {
-            this.negativeAmount = amount;
+            this.downvoteAmount = amount;
         }
-        return this.negativeAmount;
+        return this.downvoteAmount;
     }
 
     public int getAmount(VoteType type) {
         return switch (type) {
-            case UPVOTE -> positiveAmount;
-            case DOWNVOTE -> negativeAmount;
+            case UPVOTE -> upvoteAmount;
+            case DOWNVOTE -> downvoteAmount;
         };
     }
 
@@ -163,8 +163,8 @@ public class Reputation implements GuildHolder {
                 getSetting("command.repsettings.info.message.option.byembed.name", isEmbedActive()),
                 getSetting("command.repsettings.info.message.option.skipsingletarget.name", settings.reputation().isDirectActive()),
                 getSetting("command.repsettings.info.message.option.reputationmode.name", settings.general().reputationMode().localeCode()),
-                getSetting("command.repsettings.info.message.option.positiveAmount.name", positiveAmount),
-                getSetting("command.repsettings.info.message.option.negativeAmount.name", negativeAmount)
+                getSetting("command.repsettings.info.message.option.upvoteAmount.name", upvoteAmount),
+                getSetting("command.repsettings.info.message.option.downvoteAmount.name", downvoteAmount)
         );
 
         return String.join("\n", setting);

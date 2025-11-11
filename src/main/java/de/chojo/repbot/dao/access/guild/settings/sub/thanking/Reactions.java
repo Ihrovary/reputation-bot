@@ -30,11 +30,11 @@ public class Reactions implements GuildHolder {
     private final Set<String> negativeReactions;
     private String mainReaction;
 
-    public Reactions(Thanking thanking, String mainReaction, Set<String> positiveReactions, Set<String> negativeReactions) {
+    public Reactions(Thanking thanking, String mainReaction, Set<String> upvoteReactions, Set<String> downvoteReactions) {
         this.thanking = thanking;
         this.mainReaction = mainReaction;
-        this.reactions = positiveReactions;
-        this.negativeReactions = negativeReactions;
+        this.reactions = upvoteReactions;
+        this.negativeReactions = downvoteReactions;
     }
 
     @Override
@@ -59,9 +59,9 @@ public class Reactions implements GuildHolder {
 
     private ReactionCheckResult checkReaction(String reaction) {
         if (reactions.contains(reaction)) {
-            return ReactionCheckResult.POSITIVE;    
+            return ReactionCheckResult.UPVOTE;    
         } else if (negativeReactions.contains(reaction)) {
-            return ReactionCheckResult.NEGATIVE;
+            return ReactionCheckResult.DOWNVOTE;
         } else {
             return ReactionCheckResult.NOT_RELEVANT;
         }
@@ -84,7 +84,9 @@ public class Reactions implements GuildHolder {
     }
 
     public List<String> getAdditionalReactionMentions() {
-        return reactions.stream()
+        var allReactions = allReactions();
+
+        return allReactions.stream()
                         .map(reaction -> {
                             if (Verifier.isValidId(reaction)) {
                                 var asMention = guild().retrieveEmojiById(reaction).onErrorMap(err -> null)

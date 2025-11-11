@@ -21,32 +21,32 @@ public class SetRepAmounts implements SlashHandler {
     @Override
     public void onSlashCommand(SlashCommandInteractionEvent event, EventContext context) {
         var settings = guildRepository.guild(event.getGuild()).settings();
-        var positiveOption = event.getOption("positive");
-        var negativeOption = event.getOption("negative");
+        var upvoteOption = event.getOption("upvote");
+        var downvoteOption = event.getOption("downvote");
         
-        if (positiveOption == null || negativeOption == null) {
+        if (upvoteOption == null || downvoteOption == null) {
             event.reply("No amounts specified").setEphemeral(true).queue();
             return;
         }
 
-        int positiveAmount = 1;
-        int negativeAmount = -1;
+        int upvoteAmount = 1;
+        int downvoteAmount = -1;
 
-        if (positiveOption != null) {
-            positiveAmount = positiveOption.getAsInt();
-            settings.reputation().positiveAmount(positiveAmount);
+        if (upvoteOption != null) {
+            upvoteAmount = upvoteOption.getAsInt();
+            settings.reputation().upvoteAmount(upvoteAmount);
         }
 
-        if (negativeOption != null) {
-            negativeAmount = -negativeOption.getAsInt();
-            settings.reputation().negativeAmount(negativeAmount);
+        if (downvoteOption != null) {
+            downvoteAmount = -downvoteOption.getAsInt();
+            settings.reputation().downvoteAmount(downvoteAmount);
         }
 
         var message = context.localize("command.repsettings.amounts.set.message",
-                Replacement.create("POSITIVE", positiveAmount),
-                Replacement.create("NEGATIVE", negativeAmount));
+                Replacement.create("UPVOTE", upvoteAmount),
+                Replacement.create("DOWNVOTE", downvoteAmount));
         
-        event.reply(message != null ? message : String.format("Amounts set to: positive=%d, negative=%d", positiveAmount, negativeAmount))
+        event.reply(message != null ? message : String.format("Amounts set to: Upvote=%d, Downvote=%d", upvoteAmount, downvoteAmount))
                 .setEphemeral(true)
                 .queue();
     }

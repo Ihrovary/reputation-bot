@@ -114,7 +114,7 @@ public class Thanking  implements GuildHolder {
             return reactions;
         }
         
-        var positiveReactions = query("""
+        var upvoteReactions = query("""
                        SELECT reaction
                        FROM guild_reactions
                        WHERE guild_id = ? AND reaction_type = ?
@@ -123,7 +123,7 @@ public class Thanking  implements GuildHolder {
                 .mapAs(String.class)
                 .all();
 
-        var negativeReactions = query("""
+        var downvoteReactions = query("""
                        SELECT reaction
                        FROM guild_reactions
                        WHERE guild_id = ? AND reaction_type = ?
@@ -132,7 +132,7 @@ public class Thanking  implements GuildHolder {
                 .mapAs(String.class)
                 .all();
 
-        this.reactions = new Reactions(this, mainReaction, new HashSet<>(positiveReactions), new HashSet<>(negativeReactions));
+        this.reactions = new Reactions(this, mainReaction, new HashSet<>(upvoteReactions), new HashSet<>(downvoteReactions));
         return this.reactions;
     }
 

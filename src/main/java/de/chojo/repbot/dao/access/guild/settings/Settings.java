@@ -97,8 +97,8 @@ public class Settings implements GuildHolder {
                     fuzzy_active,
                     embed_active,
                     skip_single_embed,
-                    positive_amount,
-                    negative_amount
+                    upvote_amount,
+                    downvote_amount
                 FROM
                     reputation_settings
                 WHERE guild_id = ?;
