@@ -34,6 +34,7 @@ public class TestLocalization {
 
     private static final DiscordLocale[] LOCALES = {
             DiscordLocale.ENGLISH_US,
+            DiscordLocale.UKRAINIAN,
             DiscordLocale.GERMAN,
             DiscordLocale.SPANISH,
             DiscordLocale.FRENCH,

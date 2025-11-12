@@ -8,7 +8,6 @@ package de.chojo.repbot.core;
 import de.chojo.jdautil.localization.Localizer;
 import de.chojo.jdautil.util.Premium;
 import de.chojo.repbot.config.Configuration;
-import de.chojo.repbot.service.PremiumService;
 import net.dv8tion.jda.api.interactions.DiscordLocale;
 
 import java.util.Optional;
@@ -31,10 +30,11 @@ public class Localization {
 
     public void init() {
         localizer = Localizer.builder(DiscordLocale.ENGLISH_US)
-                             .addLanguage(DiscordLocale.GERMAN,
-                                     DiscordLocale.SPANISH,
-                                     DiscordLocale.FRENCH,
-                                     DiscordLocale.PORTUGUESE_BRAZILIAN)
+                             .addLanguage(DiscordLocale.UKRAINIAN,
+                                    DiscordLocale.GERMAN,
+                                    DiscordLocale.SPANISH,
+                                    DiscordLocale.FRENCH,
+                                    DiscordLocale.PORTUGUESE_BRAZILIAN)
                              .withLanguageProvider(guild -> data.guilds().guild(guild).settings().general().language())
                              .withGuildLocaleCodeProvider((guild, code) -> {
                                  if (!"words.reputation".equals(code)) return Optional.empty();
