@@ -102,10 +102,9 @@ public record RepProfile(RepUser repUser, long rank, long rankDonated, long user
         }
         build.addField("words.level", level, true)
              .addField("words.reputation", Format.BOLD.apply(String.valueOf(reputation())), true)
-             .addBlankField(true)
+             .addField("-----", "", false)
              .addField("words.votes_given", String.valueOf(given_votes()), true)
              .addField("words.votes_received", String.valueOf(received_votes()), true)
-             .addBlankField(true)
              .addField("element.profile.nextLevel", "```ANSI%n%s/%s  %s```".formatted(currProgress, nextLevel, progressBar), false)
              .setColor(repUser.member().getColor());
         var badge = configuration.badges().badge((int) rank());

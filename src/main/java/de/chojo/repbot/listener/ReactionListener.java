@@ -217,7 +217,7 @@ public class ReactionListener extends ListenerAdapter {
                 .setColor(success ? Color.GREEN : Color.RED)
                 .build())
             .mention(event.getUser())
-            .delay(30, TimeUnit.SECONDS)
+            .delay(8, TimeUnit.SECONDS)
             .flatMap(Message::delete)
             .queue(RestAction.getDefaultSuccess(), ErrorResponseException.ignore(ErrorResponse.UNKNOWN_MESSAGE)); 
     }

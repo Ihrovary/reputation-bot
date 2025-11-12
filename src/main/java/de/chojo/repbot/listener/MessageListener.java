@@ -225,7 +225,7 @@ public class MessageListener extends ListenerAdapter {
                 .setColor(Color.RED)
                 .build())
             .mention(event.getMember())
-            .delay(30, TimeUnit.SECONDS)
+            .delay(8, TimeUnit.SECONDS)
             .flatMap(Message::delete)
             .queue(RestAction.getDefaultSuccess(), ErrorResponseException.ignore(ErrorResponse.UNKNOWN_MESSAGE)); 
     }

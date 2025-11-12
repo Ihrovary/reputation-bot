@@ -18,3 +18,7 @@ ALTER TABLE repbot_schema.guild_reactions
 -- add vote_access_type to donor_roles
 ALTER TABLE repbot_schema.donor_roles
     ADD COLUMN IF NOT EXISTS vote_access_type TEXT DEFAULT 'BOTH' NOT NULL;
+
+-- add vote_access_type to receiver_roles
+ALTER TABLE repbot_schema.receiver_roles
+    ADD COLUMN IF NOT EXISTS vote_access_type TEXT DEFAULT 'BOTH' NOT NULL;
