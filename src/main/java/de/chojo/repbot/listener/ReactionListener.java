@@ -78,6 +78,7 @@ public class ReactionListener extends ListenerAdapter {
         if (isCooldown(event.getMember())) {
             var resultMessage = localizer.localize(SubmitResultType.COOLDOWN_ABUSE.localeKey(), event.getGuild());
             sendSubmitResultMessage(event, resultMessage, false);
+            removeReactionIfPossible(event);
             return;
         }
 
@@ -140,6 +141,8 @@ public class ReactionListener extends ListenerAdapter {
             if (isReactionConfirmation) {
                 sendSubmitResultMessage(event, result.message(), false);
             }
+            // On failure, try to remove the user's reaction so it doesn't stay on the message
+            removeReactionIfPossible(event);
         }
     }
 
@@ -161,20 +164,22 @@ public class ReactionListener extends ListenerAdapter {
     @Override
     public void onMessageReactionRemove(@NotNull MessageReactionRemoveEvent event) {
         if (!event.isFromGuild()) return;
-        var guildSettings = guildRepository.guild(event.getGuild()).settings();
+
+        var guild = event.getGuild();
+        var guildSettings = guildRepository.guild(guild).settings();
 
         var reactionCheck = guildSettings.thanking().reactions().checkReaction(event.getReaction());
         if (reactionCheck == ReactionCheckResult.NOT_RELEVANT) return;
         
-        var entries = guildRepository.guild(event.getGuild()).reputation().log().messageLog(event.getMessageIdLong(), 50)
+        var entries = guildRepository.guild(guild).reputation().log().messageLog(event.getMessageIdLong(), 50)
                                      .stream()
                                      .filter(entry -> entry.type() == ThankType.REACTION && entry.donorId() == event.getUserIdLong())
                                      .toList();
                                      
         if (!entries.isEmpty() && guildSettings.messages().isReactionConfirmation()) {
-            reputationService.delete(entries, event.getGuildChannel(), event.getGuild());
+            reputationService.delete(entries, event.getGuildChannel(), guild);
 
-            var resultMessage = localizer.localize("listener.reaction.removal", event.getGuild(),
+            var resultMessage = localizer.localize("listener.reaction.removal", guild,
                          Replacement.create("DONOR", User.fromId(event.getUserId()).getAsMention()));
 
             sendSubmitResultMessage(event, resultMessage, false);
@@ -215,5 +220,17 @@ public class ReactionListener extends ListenerAdapter {
             .delay(30, TimeUnit.SECONDS)
             .flatMap(Message::delete)
             .queue(RestAction.getDefaultSuccess(), ErrorResponseException.ignore(ErrorResponse.UNKNOWN_MESSAGE)); 
+    }
+
+    private void removeReactionIfPossible(MessageReactionAddEvent event) {
+        try {
+            // Ensure we have permission to manage messages in the channel
+            if (!event.getGuild().getSelfMember().hasPermission(event.getGuildChannel(), Permission.MESSAGE_MANAGE)) return;
+            var user = event.getUser();
+            if (user == null) return;
+            event.getReaction().removeReaction(user).queue(RestAction.getDefaultSuccess(), ErrorResponseException.ignore(ErrorResponse.UNKNOWN_MESSAGE));
+        } catch (InsufficientPermissionException ignored) {
+            // Can't remove reaction due to missing permissions - nothing we can do
+        }
     }
 }
