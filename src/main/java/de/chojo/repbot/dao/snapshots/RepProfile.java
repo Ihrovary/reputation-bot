@@ -89,22 +89,15 @@ public record RepProfile(RepUser repUser, long rank, long rankDonated, long user
         var nextLevel = nextRoleRep.equals(currentRoleRep) ? "Ꝏ" : String.valueOf(nextRoleRep - currentRoleRep);
 
         var build = new LocalizedEmbedBuilder(localizer);
-        if (detailed) {
-            build.setAuthor("element.profile.title", null, repUser.member().getEffectiveAvatarUrl(),
-                    Replacement.create("NAME", repUser.member().getEffectiveName()));
-            build.addField("words.rankreceived", rank() + "", true);
-            build.addField("words.rankdonated", rankDonated() + "", true);
-            build.addBlankField(false);
-        } else {
-            build.setAuthor("%s$%s$".formatted(rank() != 0 ? "#" + rank() + " " : "", "element.profile.title"),
-                    null, repUser.member().getEffectiveAvatarUrl(),
-                    Replacement.create("NAME", repUser.member().getEffectiveName()));
-        }
+        build.setAuthor("%s$%s$".formatted(rank() != 0 ? "#" + rank() + " " : "", "element.profile.title"),
+                null, repUser.member().getEffectiveAvatarUrl(),
+                Replacement.create("NAME", repUser.member().getEffectiveName()));
         build.addField("words.level", level, true)
              .addField("words.reputation", Format.BOLD.apply(String.valueOf(reputation())), true)
-             .addField("-----", "", false)
+             .addBlankField(true)
              .addField("words.votes_given", String.valueOf(given_votes()), true)
              .addField("words.votes_received", String.valueOf(received_votes()), true)
+             .addBlankField(true)
              .addField("element.profile.nextLevel", "```ANSI%n%s/%s  %s```".formatted(currProgress, nextLevel, progressBar), false)
              .setColor(repUser.member().getColor());
         var badge = configuration.badges().badge((int) rank());
@@ -118,7 +111,7 @@ public record RepProfile(RepUser repUser, long rank, long rankDonated, long user
     }
 
     private void addDetails(EmbedBuilder build) {
-        var entries=5;
+        var entries = 3;
         String topDonor = repUser.reputation().ranking().user().given().defaultRanking(entries, repUser.member()).page(0)
                                  .stream().map(RankingEntry::simpleString).collect(Collectors.joining("\n"));
         String topReceiver = repUser.reputation().ranking().user().received().defaultRanking(entries, repUser.member()).page(0)
@@ -128,11 +121,13 @@ public record RepProfile(RepUser repUser, long rank, long rankDonated, long user
 
         // TODO: Great case for components v2
 
+        build.addBlankField(false);
         build.addField("element.profile.topdonor", topDonor, true);
         build.addField("element.profile.topreceiver", topReceiver, true);
-        build.addBlankField(false);
+        build.addBlankField(true);
         build.addField("element.profile.mostgivenchannel", mostGivenChannel, true);
         build.addField("element.profile.mostreceivedchannel", mostReceivedChannel, true);
+        build.addBlankField(true);
     }
 
     public Optional<Member> resolveMember(Guild guild) {
