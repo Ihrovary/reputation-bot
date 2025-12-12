@@ -77,16 +77,19 @@ public class ReputationService {
      * @param type       type of reputation source
      * @return true if the reputation was counted and is valid
      */
-    public SubmitResultMessage submitReputation(Guild guild, Member donor, @Nullable Member receiver, Message message, @Nullable Message refMessage, ThankType type, VoteType voteType) {
-        var repGuild = guildRepository.guild(guild);
-        log.trace("Submitting reputation for message {} of type {}", message.getIdLong(), type);
-        if (receiver == null) {
-            return SubmitResultMessage.Fail();
+    public SubmitResultMessage submitReputation(SubmitResultContext context, @Nullable Message refMessage) {
+        log.trace("Submitting reputation for message {} of type {}", context.eventMessage().getIdLong(), context.type());
+
+        var repGuild = guildRepository.guild(context.guild());
+        SubmitResultMessage failResult = SubmitResultMessage.Fail(context);
+
+        if (context.receiver() == null) {
+            return failResult;
         }
         // block bots
-        if (receiver.getUser().isBot()) {
-            log.trace("Author of {} is bot.", message.getIdLong());
-            return SubmitResultMessage.Fail();
+        if (context.receiver().getUser().isBot()) {
+            log.trace("Author of {} is bot.", context.eventMessage().getIdLong());
+            return failResult;
         }
 
         var settings = repGuild.settings();
@@ -94,41 +97,49 @@ public class ReputationService {
         var thankSettings = settings.thanking();
         var analyzer = repGuild.reputation().analyzer();
 
-        analyzer.log(message, SubmitResult.of(SubmitResultType.SUBMITTING,
-                Replacement.create("type", "$%s$".formatted(type.nameLocaleKey())),
-                Replacement.createMention(donor)));
+        analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.SUBMITTING,
+                Replacement.create("type", "$%s$".formatted(context.type().nameLocaleKey())),
+                Replacement.createMention(context.donor())));
 
         // block non reputation channel
-        if (!thankSettings.channels().isEnabled(message.getGuildChannel())) {
-            analyzer.log(message, SubmitResult.of(SubmitResultType.CHANNEL_INACTIVE));
-            log.trace("Channel of message {} is not enabled", message.getIdLong());
-            return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.CHANNEL_INACTIVE.localeKey(), guild));
+        if (!thankSettings.channels().isEnabled(context.eventMessage().getGuildChannel())) {
+            analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.CHANNEL_INACTIVE));
+            log.trace("Channel of message {} is not enabled", context.eventMessage().getIdLong());
+            return failResult;
         }
 
-        if (isTypeDisabled(type, messageSettings)) {
-            analyzer.log(message, SubmitResult.of(SubmitResultType.THANK_TYPE_DISABLED, Replacement.create("thanktype", "$%s$".formatted(type.nameLocaleKey()))));
-            log.trace("Thank type {} for message {} is disabled", type, message.getIdLong());
-            return SubmitResultMessage.Fail();
+        if (isTypeDisabled(context.type(), messageSettings)) {
+            analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.THANK_TYPE_DISABLED, Replacement.create("thanktype", "$%s$".formatted(context.type().nameLocaleKey()))));
+            log.trace("Thank type {} for message {} is disabled", context.type(), context.eventMessage().getIdLong());
+            return failResult;
         }
 
-        var context = getContext(donor, message, type, settings);
+        var messageContext = getContext(context.donor(), context.eventMessage(), context.type(), settings);
 
-        if (isSelfVote(donor, receiver, message)) {
-            analyzer.log(message, SubmitResult.of(SubmitResultType.SELF_VOTE));
-            log.trace("Detected self vote on {}", message.getIdLong());
-            return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.SELF_VOTE.localeKey(), guild));
+        if (isSelfVote(context.donor(), context.receiver(), context.eventMessage())) {
+            analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.SELF_VOTE));
+            log.trace("Detected self vote on {}", context.eventMessage().getIdLong());
+            var failMessage = localizer.localize(SubmitResultType.SELF_VOTE.localeKey(), context.guild());
+            return SubmitResultMessage.Fail(context, failMessage);
         }
 
-        var abuseCheck = assertAbuseProtection(guild, donor, receiver, message, refMessage, context, voteType);
+        var abuseCheck = assertAbuseProtection(context, refMessage, messageContext);
         if (!abuseCheck.isSuccess()) {
             return abuseCheck;
         }
 
-        var amount = settings.reputation().getAmount(voteType);
-        boolean success = log(guild, donor, receiver, message, refMessage, type, amount, settings);
+        var amount = settings.reputation().getAmount(context.voteType());
+        boolean success = log(context.guild(), context.donor(), context.receiver(), context.eventMessage(), refMessage, context.type(), amount, settings);
 
-        var result = success ? SubmitResultMessage.Success() : SubmitResultMessage.Fail();
-        return result;
+        if (success) {
+            var successMessage = localizer.localize("listener.reaction.confirmation", context.guild(),
+                Replacement.createMention("DONOR", context.donor()),
+                Replacement.createMention("RECEIVER", context.receiver()),
+                Replacement.create("VOTETYPE", context.voteType().localeKey()));
+            return SubmitResultMessage.Success(context, successMessage);
+        }
+
+        return failResult;
     }
 
     public void deleteBulk(List<Long> messages, GuildMessageChannelUnion channel, Guild guild) {
@@ -172,64 +183,70 @@ public class ReputationService {
         return context;
     }
 
-    private SubmitResultMessage assertAbuseProtection(Guild guild, Member donor, Member receiver, Message message, @Nullable Message refMessage, MessageContext context, VoteType voteType) {
-        var repGuild = guildRepository.guild(guild);
+    private SubmitResultMessage assertAbuseProtection(SubmitResultContext context, @Nullable Message refMessage, MessageContext messageContext) {
+        var repGuild = guildRepository.guild(context.guild());
         var analyzer = repGuild.reputation().analyzer();
         var settings = repGuild.settings();
         var abuseSettings = settings.abuseProtection();
 
         // Abuse Protection: target context
-        if (!context.members().contains(receiver) && abuseSettings.isReceiverContext()) {
-            log.trace("Receiver is not in context of {}", message.getIdLong());
-            analyzer.log(message, SubmitResult.of(SubmitResultType.TARGET_NOT_IN_CONTEXT, Replacement.createMention(receiver)));
-            return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.TARGET_NOT_IN_CONTEXT.localeKey(), guild, Replacement.createMention(receiver)));
+        if (!messageContext.members().contains(context.receiver()) && abuseSettings.isReceiverContext()) {
+            log.trace("Receiver is not in context of {}", messageContext.message().getIdLong());
+            analyzer.log(messageContext.message(), SubmitResult.of(SubmitResultType.TARGET_NOT_IN_CONTEXT, Replacement.createMention(context.receiver())));
+            var failMessage = localizer.localize(SubmitResultType.TARGET_NOT_IN_CONTEXT.localeKey(), context.guild(), Replacement.createMention(context.receiver()));
+            return SubmitResultMessage.Fail(context, failMessage);
         }
 
         // Abuse Protection: donor context
-        if (!context.members().contains(donor) && abuseSettings.isDonorContext()) {
-            log.trace("Donor is not in context of {}", message.getIdLong());
-            analyzer.log(message, SubmitResult.of(SubmitResultType.DONOR_NOT_IN_CONTEXT, Replacement.createMention(donor)));
-            return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.DONOR_NOT_IN_CONTEXT.localeKey(), guild, Replacement.createMention(donor)));
+        if (!messageContext.members().contains(context.donor()) && abuseSettings.isDonorContext()) {
+            log.trace("Donor is not in context of {}", messageContext.message().getIdLong());
+            analyzer.log(messageContext.message(), SubmitResult.of(SubmitResultType.DONOR_NOT_IN_CONTEXT, Replacement.createMention(context.donor())));
+            var failMessage = localizer.localize(SubmitResultType.DONOR_NOT_IN_CONTEXT.localeKey(), context.guild(), Replacement.createMention(context.donor()));
+            return SubmitResultMessage.Fail(context, failMessage);
         }
 
         // Abuse protection: Cooldown and Role Access
-        var canGiveReputationResult = canGiveReputation(message, donor, receiver, guild, settings, voteType);
+        var canGiveReputationResult = canGiveReputation(context, settings);
         if (!canGiveReputationResult.isSuccess()) {
-            log.trace("Cooldown active on {}", message.getIdLong());
+            log.trace("Cooldown active on {}", context.eventMessage().getIdLong());
             return canGiveReputationResult;
         }
 
         // block outdated ref message
         // Abuse protection: Message age
         if (refMessage != null) {
-            if (abuseSettings.isOldMessage(refMessage) && !context.latestMessages(abuseSettings.minMessages()).contains(refMessage)) {
-                log.trace("Reference message of {} is outdated", message.getIdLong());
-                analyzer.log(message, SubmitResult.of(SubmitResultType.OUTDATED_REFERENCE_MESSAGE));
-                return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.OUTDATED_REFERENCE_MESSAGE.localeKey(), guild));
+            if (abuseSettings.isOldMessage(refMessage) && !messageContext.latestMessages(abuseSettings.minMessages()).contains(refMessage)) {
+                log.trace("Reference message of {} is outdated", context.eventMessage().getIdLong());
+                analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.OUTDATED_REFERENCE_MESSAGE));
+                var failMessage = localizer.localize(SubmitResultType.OUTDATED_REFERENCE_MESSAGE.localeKey(), context.guild());
+                return SubmitResultMessage.Fail(context, failMessage);
             }
         }
 
         // block outdated message
         // Abuse protection: Message age
-        if (abuseSettings.isOldMessage(message)) {
-            log.trace("Message of {} is outdated", message.getIdLong());
-            analyzer.log(message, SubmitResult.of(SubmitResultType.OUTDATED_MESSAGE));
-            return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.OUTDATED_MESSAGE.localeKey(), guild));
+        if (abuseSettings.isOldMessage(context.eventMessage())) {
+            log.trace("Message of {} is outdated", context.eventMessage().getIdLong());
+            analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.OUTDATED_MESSAGE));
+            var failMessage = localizer.localize(SubmitResultType.OUTDATED_MESSAGE.localeKey(), context.guild());
+            return SubmitResultMessage.Fail(context, failMessage);
         }
 
-        if (abuseSettings.isReceiverLimit(receiver, voteType)) {
-            log.trace("Receiver limit is reached on {}", message.getIdLong());
-            analyzer.log(message, SubmitResult.of(SubmitResultType.RECEIVER_LIMIT));
-            return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.RECEIVER_LIMIT.localeKey(), guild));
+        if (abuseSettings.isReceiverLimit(context.receiver(), context.voteType())) {
+            log.trace("Receiver limit is reached on {}", context.eventMessage().getIdLong());
+            analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.RECEIVER_LIMIT));
+            var failMessage = localizer.localize(SubmitResultType.RECEIVER_LIMIT.localeKey(), context.guild());
+            return SubmitResultMessage.Fail(context, failMessage);
         }
 
-        if (abuseSettings.isDonorLimit(donor)) {
-            log.trace("Donor limit is reached on {}", message.getIdLong());
-            analyzer.log(message, SubmitResult.of(SubmitResultType.DONOR_LIMIT));
-            return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.DONOR_LIMIT.localeKey(), guild));
+        if (abuseSettings.isDonorLimit(context.donor())) {
+            log.trace("Donor limit is reached on {}", context.eventMessage().getIdLong());
+            analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.DONOR_LIMIT));
+            var failMessage = localizer.localize(SubmitResultType.DONOR_LIMIT.localeKey(), context.guild());
+            return SubmitResultMessage.Fail(context, failMessage);
         }
 
-        return SubmitResultMessage.Success();
+        return SubmitResultMessage.Success(context);
     }
 
     private boolean isSelfVote(Member donor, Member receiver, Message message) {
@@ -277,8 +294,6 @@ public class ReputationService {
                 type,
                 Instant.now()));
 
-        // mark messages
-        Messages.markMessage(message, refMessage, settings);
         // update role
         var newRank = assigner.updateReporting(receiver, message.getGuildChannel());
 
@@ -306,9 +321,6 @@ public class ReputationService {
 
     private void logToChannel(Settings settings, String string) {
         if (!settings.repGuild().settings().logChannel().active()) return;
-
-        if (Premium.isNotEntitled(settings.repGuild().subscriptions(), configuration.skus().features().logChannel().logChannel()))
-            return;
 
         TextChannel textChannelById = settings.guild().getTextChannelById(settings.repGuild().settings().logChannel().channelId());
         if (textChannelById == null) return;
@@ -342,22 +354,23 @@ public class ReputationService {
         return false;
     }
 
-    public SubmitResultMessage canGiveReputation(Message message, Member donor, Member receiver, Guild guild, Settings settings, VoteType voteType) {
+    public SubmitResultMessage canGiveReputation(SubmitResultContext context, Settings settings) {
         var repGuild = settings.repGuild();
         var analyzer = repGuild.reputation().analyzer();
         // block cooldown
-        var optRating = guildRepository.guild(guild).reputation().user(donor).getLastReputation(receiver);
+        var optRating = guildRepository.guild(context.guild()).reputation().user(context.donor()).getLastReputation(context.receiver());
 
         if (optRating.isPresent()) {
             var lastRating = optRating.get();
 
             if (settings.abuseProtection().cooldown() < 0) {
-                analyzer.log(message, SubmitResult.of(SubmitResultType.COOLDOWN_ONCE));
-                return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.COOLDOWN_ONCE.localeKey(), guild));
+                analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.COOLDOWN_ONCE));
+                var failMessage = localizer.localize(SubmitResultType.COOLDOWN_ONCE.localeKey(), context.guild());
+                return SubmitResultMessage.Fail(context, failMessage);
             }
 
             if (lastRating.tillNow().toMinutes() < settings.abuseProtection().cooldown()) {
-                analyzer.log(message, SubmitResult.of(SubmitResultType.COOLDOWN_ACTIVE,
+                analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.COOLDOWN_ACTIVE,
                         Replacement.create("TARGET", "$words.message$"),
                         Replacement.create("URL", lastRating.getMessageJumpLink()),
                         Replacement.create("ENTRY", lastRating.simpleString()),
@@ -367,55 +380,59 @@ public class ReputationService {
                 log.trace("The last rating is too recent. {}/{}", lastRating.tillNow().toMinutes(),
                         settings.abuseProtection().cooldown());
 
-                var resultMessage = localizer.localize(SubmitResultType.COOLDOWN_RECENT_ACTIVE.localeKey(), guild, 
+                var resultMessage = localizer.localize(SubmitResultType.COOLDOWN_RECENT_ACTIVE.localeKey(), context.guild(), 
                     Replacement.create("REMAINING", settings.abuseProtection().cooldown() - lastRating.tillNow().toMinutes()));
 
-                return SubmitResultMessage.Fail(resultMessage);
+                return SubmitResultMessage.Fail(context, resultMessage);
             }
         }
 
-        var hasRoleAccessResult = hasRoleAccess(message, donor, receiver, guild, settings, voteType);
+        var hasRoleAccessResult = hasRoleAccess(context, settings);
         if (!hasRoleAccessResult.isSuccess()) {
             return hasRoleAccessResult;
         }
 
-        return SubmitResultMessage.Success();
+        return SubmitResultMessage.Success(context);
     }
 
     
-    private SubmitResultMessage hasRoleAccess(Message message, Member donor, Member receiver, Guild guild, Settings settings, VoteType voteType) {
+    private SubmitResultMessage hasRoleAccess(SubmitResultContext context, Settings settings) {
         var repGuild = settings.repGuild();
         var analyzer = repGuild.reputation().analyzer();
 
-        if (!settings.thanking().receiverRoles().hasRole(receiver)) {
-            analyzer.log(message, SubmitResult.of(SubmitResultType.NO_RECEIVER_ROLE, Replacement.createMention(receiver)));
+        if (!settings.thanking().receiverRoles().hasRole(context.receiver())) {
+            analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.NO_RECEIVER_ROLE, Replacement.createMention(context.receiver())));
             log.trace("The receiver does not have a receiver role.");
-            return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.NO_RECEIVER_ROLE.localeKey(), guild, Replacement.createMention(receiver)));
+            var failMessage = localizer.localize(SubmitResultType.NO_RECEIVER_ROLE.localeKey(), context.guild(), Replacement.createMention(context.receiver()));
+            return SubmitResultMessage.Fail(context, failMessage);
         }
 
-        var donorRoleAccess = settings.thanking().donorRoles().hasRole(donor, voteType);
+        var donorRoleAccess = settings.thanking().donorRoles().hasRole(context.donor(), context.voteType());
         
         switch (donorRoleAccess) {
             case VoteAccessType.BOTH: {
-                return SubmitResultMessage.Success();
+                return SubmitResultMessage.Success(context);
             }
             case VoteAccessType.NONE: {
-                analyzer.log(message, SubmitResult.of(SubmitResultType.NO_DONOR_VOTE_ACCESS, Replacement.createMention(donor)));
+                analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.NO_DONOR_VOTE_ACCESS, Replacement.createMention(context.donor())));
                 log.trace("The donor does not have permission to upvote or downvote.");
-                return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.NO_DONOR_VOTE_ACCESS.localeKey(), guild, Replacement.createMention(donor)));
+                var failMessage = localizer.localize(SubmitResultType.NO_DONOR_VOTE_ACCESS.localeKey(), context.guild(), Replacement.createMention(context.donor()));
+                return SubmitResultMessage.Fail(context, failMessage);
             }
             case VoteAccessType.UPVOTE_ONLY: {
-                analyzer.log(message, SubmitResult.of(SubmitResultType.NO_DONOR_DOWNVOTE_ACCESS, Replacement.createMention(donor)));
+                analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.NO_DONOR_DOWNVOTE_ACCESS, Replacement.createMention(context.donor())));
                 log.trace("The donor does not have permission to upvote.");
-                return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.NO_DONOR_DOWNVOTE_ACCESS.localeKey(), guild, Replacement.createMention(donor)));
+                var failMessage = localizer.localize(SubmitResultType.NO_DONOR_DOWNVOTE_ACCESS.localeKey(), context.guild(), Replacement.createMention(context.donor()));
+                return SubmitResultMessage.Fail(context, failMessage);
             }
             case VoteAccessType.DOWNVOTE_ONLY: {
-                analyzer.log(message, SubmitResult.of(SubmitResultType.NO_DONOR_UPVOTE_ACCESS, Replacement.createMention(donor)));
+                analyzer.log(context.eventMessage(), SubmitResult.of(SubmitResultType.NO_DONOR_UPVOTE_ACCESS, Replacement.createMention(context.donor())));
                 log.trace("The donor does not have permission to downvote.");
-                return SubmitResultMessage.Fail(localizer.localize(SubmitResultType.NO_DONOR_UPVOTE_ACCESS.localeKey(), guild, Replacement.createMention(donor)));
+                var failMessage = localizer.localize(SubmitResultType.NO_DONOR_UPVOTE_ACCESS.localeKey(), context.guild(), Replacement.createMention(context.donor()));
+                return SubmitResultMessage.Fail(context, failMessage);
             }
         }
 
-        return SubmitResultMessage.Success();
+        return SubmitResultMessage.Success(context);
     }
 }

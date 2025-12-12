@@ -17,6 +17,7 @@ import de.chojo.repbot.dao.provider.GuildRepository;
 import de.chojo.repbot.service.reputation.VoteType;
 import de.chojo.repbot.service.reputation.ReputationService;
 import de.chojo.repbot.service.reputation.SubmitResult;
+import de.chojo.repbot.service.reputation.SubmitResultContext;
 import de.chojo.repbot.service.reputation.SubmitResultType;
 import de.chojo.repbot.util.PermissionErrorHandler;
 import net.dv8tion.jda.api.Permission;
@@ -88,7 +89,8 @@ public class ReputationVoteListener extends ListenerAdapter {
 
         if (!voteRequest.canVote()) return;
 
-        var submitResult = reputationService.submitReputation(event.getGuild(), event.getMember(), target.get(), voteRequest.refMessage(), null, ThankType.EMBED, VoteType.UPVOTE);
+        SubmitResultContext context = new SubmitResultContext(event.getGuild(), voteRequest.member(), target.get(), voteRequest.refMessage(), ThankType.EMBED, VoteType.UPVOTE);
+        var submitResult = reputationService.submitReputation(context, null);
 
         if (submitResult.isSuccess()) {
             voteRequest.voted();

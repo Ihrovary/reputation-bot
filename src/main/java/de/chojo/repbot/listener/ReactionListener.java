@@ -17,8 +17,11 @@ import de.chojo.repbot.dao.provider.GuildRepository;
 import de.chojo.repbot.dao.snapshots.ReputationLogEntry;
 import de.chojo.repbot.service.reputation.VoteType;
 import de.chojo.repbot.service.reputation.ReputationService;
+import de.chojo.repbot.service.reputation.SubmitResultContext;
+import de.chojo.repbot.service.reputation.SubmitResultMessage;
 import de.chojo.repbot.service.reputation.SubmitResultType;
 import de.chojo.repbot.util.PermissionErrorHandler;
+import de.chojo.repbot.util.SubmitResultNotifier;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Member;
@@ -66,7 +69,8 @@ public class ReactionListener extends ListenerAdapter {
     @Override
     public void onMessageReactionAdd(@NotNull MessageReactionAddEvent event) {
         if (event.getUser().isBot() || !event.isFromGuild()) return;
-        var repGuild = guildRepository.guild(event.getGuild());
+        var guild = event.getGuild();
+        var repGuild = guildRepository.guild(guild);
         var guildSettings = repGuild.settings();
 
         if (!guildSettings.thanking().channels().isEnabled(event.getGuildChannel())) return;
@@ -74,13 +78,6 @@ public class ReactionListener extends ListenerAdapter {
 
         var reactionCheck = guildSettings.thanking().reactions().checkReaction(event.getReaction());
         if (reactionCheck == ReactionCheckResult.NOT_RELEVANT) return;
-
-        if (isCooldown(event.getMember())) {
-            var resultMessage = localizer.localize(SubmitResultType.COOLDOWN_ABUSE.localeKey(), event.getGuild());
-            sendSubmitResultMessage(event, resultMessage, false);
-            removeReactionIfPossible(event);
-            return;
-        }
 
         Message message;
         try {
@@ -90,13 +87,28 @@ public class ReactionListener extends ListenerAdapter {
                            .onErrorMap(err -> null)
                            .complete();
         } catch (InsufficientPermissionException e) {
-            PermissionErrorHandler.handle(e, event.getGuild(), localizer.context(LocaleProvider.guild(event.getGuild())), configuration);
+            PermissionErrorHandler.handle(e, guild, localizer.context(LocaleProvider.guild(guild)), configuration);
             return;
         }
 
         if (message == null) return;
 
+        var voteType = switch (reactionCheck) {
+            case UPVOTE -> VoteType.UPVOTE;
+            case DOWNVOTE -> VoteType.DOWNVOTE;
+            default -> throw new IllegalArgumentException("Unexpected value: " + reactionCheck);
+        };
+
         var receiver = event.getGuild().retrieveMember(message.getAuthor()).complete();
+        SubmitResultContext context = new SubmitResultContext(event.getGuild(), event.getMember(), receiver, message, ThankType.REACTION, voteType);
+
+        if (isCooldown(event.getMember())) {
+            var resultMessage = localizer.localize(SubmitResultType.COOLDOWN_ABUSE.localeKey(), guild);
+            var result = SubmitResultMessage.Fail(context, resultMessage);
+            SubmitResultNotifier.notifyResult(guildSettings, localizer, result);
+            removeReactionIfPossible(event);
+            return;
+        }
 
         var logEntry = repGuild.reputation().log().getLogEntries(message);
         if (!logEntry.isEmpty()) {
@@ -117,35 +129,18 @@ public class ReactionListener extends ListenerAdapter {
             return;
         }
 
-        var voteType = switch (reactionCheck) {
-            case UPVOTE -> VoteType.UPVOTE;
-            case DOWNVOTE -> VoteType.DOWNVOTE;
-            default -> throw new IllegalArgumentException("Unexpected value: " + reactionCheck);
-        };
-
-        var result = reputationService.submitReputation(event.getGuild(), event.getMember(), receiver, message, null, ThankType.REACTION, voteType);
-        var isReactionConfirmation = guildSettings.messages().isReactionConfirmation();
+        SubmitResultMessage result = reputationService.submitReputation(context, null);
 
         if (result.isSuccess()) {
             reacted(event.getMember());
-
-            if (isReactionConfirmation) {
-                var confirmationMessage = localizer.localize("listener.reaction.confirmation", event.getGuild(),
-                    Replacement.createMention("DONOR", event.getUser()),
-                    Replacement.createMention("RECEIVER", receiver),
-                    Replacement.create("VOTETYPE", voteType.localeKey()));
-                sendSubmitResultMessage(event, confirmationMessage, true);
-            }
-        }
-        else {
-            if (isReactionConfirmation) {
-                sendSubmitResultMessage(event, result.message(), false);
-            }
-            // On failure, try to remove the user's reaction so it doesn't stay on the message
+        } else {
             removeReactionIfPossible(event);
         }
-    }
 
+        if (guildSettings.messages().isReactionConfirmation()) {
+            SubmitResultNotifier.notifyResult(guildSettings, localizer, result);
+        }
+    }
 
     @Override
     public void onMessageReactionRemoveEmoji(@NotNull MessageReactionRemoveEmojiEvent event) {
@@ -182,7 +177,7 @@ public class ReactionListener extends ListenerAdapter {
             var resultMessage = localizer.localize("listener.reaction.removal", guild,
                          Replacement.create("DONOR", User.fromId(event.getUserId()).getAsMention()));
 
-            sendSubmitResultMessage(event, resultMessage, false);
+            SubmitResultNotifier.sendSubmitRemovalMessageToChannel(event, resultMessage);
         }
     }
 
@@ -206,20 +201,6 @@ public class ReactionListener extends ListenerAdapter {
 
     public void reacted(Member member) {
         lastReaction.put(member.getIdLong(), Instant.now());
-    }
-
-    private void sendSubmitResultMessage(GenericMessageReactionEvent event, String message, boolean success) {
-        if (message == null || message.isEmpty()) return;
-
-        event.getChannel()
-            .sendMessageEmbeds(new EmbedBuilder()
-                .setDescription(message)
-                .setColor(success ? Color.GREEN : Color.RED)
-                .build())
-            .mention(event.getUser())
-            .delay(8, TimeUnit.SECONDS)
-            .flatMap(Message::delete)
-            .queue(RestAction.getDefaultSuccess(), ErrorResponseException.ignore(ErrorResponse.UNKNOWN_MESSAGE)); 
     }
 
     private void removeReactionIfPossible(MessageReactionAddEvent event) {

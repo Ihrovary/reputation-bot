@@ -5,21 +5,21 @@
  */
 package de.chojo.repbot.service.reputation;
 
-public record SubmitResultMessage(boolean isSuccess, String message) {
+public record SubmitResultMessage(SubmitResultContext context, boolean isSuccess, VoteType voteType, String resultMessage) {
 
-    public static SubmitResultMessage Fail() {
-        return new SubmitResultMessage(false, "");
+    public static SubmitResultMessage Fail(SubmitResultContext context) {
+        return new SubmitResultMessage(context, false, context.voteType(), "");
     }
 
-    public static SubmitResultMessage Success() {
-        return new SubmitResultMessage(true, "");
+    public static SubmitResultMessage Success(SubmitResultContext context) {
+        return new SubmitResultMessage(context, true, context.voteType(), "");
     }
 
-    public static SubmitResultMessage Fail(String message) {
-        return new SubmitResultMessage(false, message);
+    public static SubmitResultMessage Fail(SubmitResultContext context, String message) {
+        return new SubmitResultMessage(context, false, context.voteType(), message);
     }
 
-    public static SubmitResultMessage Success(String message) {
-        return new SubmitResultMessage(true, message);
+    public static SubmitResultMessage Success(SubmitResultContext context, String message) {
+        return new SubmitResultMessage(context, true, context.voteType(), message);
     }
 }

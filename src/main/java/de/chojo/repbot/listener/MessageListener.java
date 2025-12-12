@@ -21,9 +21,11 @@ import de.chojo.repbot.service.RepBotCachePolicy;
 import de.chojo.repbot.service.reputation.VoteType;
 import de.chojo.repbot.service.reputation.ReputationService;
 import de.chojo.repbot.service.reputation.SubmitResult;
+import de.chojo.repbot.service.reputation.SubmitResultContext;
 import de.chojo.repbot.service.reputation.SubmitResultMessage;
 import de.chojo.repbot.service.reputation.SubmitResultType;
 import de.chojo.repbot.util.PermissionErrorHandler;
+import de.chojo.repbot.util.SubmitResultNotifier;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Message;
@@ -128,7 +130,6 @@ public class MessageListener extends ListenerAdapter {
                 && (result.asEmpty().reason() == EmptyResultReason.NO_MATCH
                 || result.asEmpty().reason() == EmptyResultReason.NO_PATTERN)) return;
 
-
         if (PermissionErrorHandler.assertAndHandle(event.getGuildChannel(), localizer.context(LocaleProvider.guild(event.getGuild())), configuration,
                 Permission.MESSAGE_SEND, Permission.MESSAGE_ADD_REACTION, Permission.MESSAGE_EMBED_LINKS)) {
             log.debug("Permission error while analyzing on {} message {}", message.getGuild(), message.getIdLong());
@@ -137,6 +138,11 @@ public class MessageListener extends ListenerAdapter {
 
         log.trace("Found thankword in {}", message.getIdLong());
 
+        var match = result.asMatch();
+        var resultType = match.thankType();
+        var donator = match.donor();
+        SubmitResultContext defaultContext = new SubmitResultContext(guild, donator, null, message, resultType, VoteType.UPVOTE);
+
         if (settings.abuseProtection().isDonorLimit(event.getMember())) {
             analyzer.log(message, SubmitResult.of(SubmitResultType.DONOR_LIMIT));
             log.trace("Donor reached limit on {}", message.getIdLong());
@@ -144,7 +150,7 @@ public class MessageListener extends ListenerAdapter {
         }
 
         if (result.isEmpty() && (settings.reputation().isEmbedActive() || settings.reputation().isDirectActive())) {
-            resolveNoTarget(message, settings);
+            resolveNoTarget(defaultContext, settings);
             return;
         }
         if (result.isEmpty()) {
@@ -152,34 +158,32 @@ public class MessageListener extends ListenerAdapter {
             return;
         }
 
-        var match = result.asMatch();
-        var resultType = match.thankType();
-
-        var donator = match.donor();
-
         for (var receiver : match.receivers()) {
+            SubmitResultContext context = new SubmitResultContext(guild, donator, receiver, message, resultType, VoteType.UPVOTE);
+
             switch (resultType) {
                 case FUZZY -> {
                     if (!settings.reputation().isFuzzyActive()) continue;
-                    var submitResult = reputationService.submitReputation(guild, donator, receiver, message, null, resultType, VoteType.UPVOTE);
-                    sendSubmitResultMessage(event, submitResult);
+                    var submitResult = reputationService.submitReputation(context, null);
+                    SubmitResultNotifier.notifyResult(settings, localizer, submitResult);
                 }
                 case MENTION -> {
                     if (!settings.reputation().isMentionActive()) continue;
-                    var submitResult = reputationService.submitReputation(guild, donator, receiver, message, null, resultType, VoteType.UPVOTE);
-                    sendSubmitResultMessage(event, submitResult);
+                    var submitResult = reputationService.submitReputation(context, null);
+                    SubmitResultNotifier.notifyResult(settings, localizer, submitResult);
                 }
                 case ANSWER -> {
                     if (!settings.reputation().isAnswerActive()) continue;
-                    var submitResult = reputationService.submitReputation(guild, donator, receiver, message, match.asAnswer().referenceMessage(), resultType, VoteType.UPVOTE);
-                    sendSubmitResultMessage(event, submitResult);
+                    var submitResult = reputationService.submitReputation(context, match.asAnswer().referenceMessage());
+                    SubmitResultNotifier.notifyResult(settings, localizer, submitResult);
                 }
                 default -> log.error(LogNotify.NOTIFY_ADMIN, "Unknown thank type {}", resultType);
             }
         }
     }
 
-    private void resolveNoTarget(Message message, Settings settings) {
+    private void resolveNoTarget(SubmitResultContext defaultContext, Settings settings) {
+        var message = defaultContext.eventMessage();
         log.trace("Resolving missing target for {}", message.getIdLong());
         var recentMembers = new LinkedHashSet<>(contextResolver.getCombinedContext(message, settings).members());
         recentMembers.remove(message.getMember());
@@ -192,7 +196,10 @@ public class MessageListener extends ListenerAdapter {
         }
 
         var members = recentMembers.stream()
-                   .filter(receiver -> reputationService.canGiveReputation(message, message.getMember(), receiver, message.getGuild(), settings, VoteType.UPVOTE).isSuccess())
+                   .filter(receiver -> {
+                        var context = new SubmitResultContext(defaultContext.guild(), defaultContext.donor(), receiver, message, defaultContext.type(), defaultContext.voteType());
+                        return reputationService.canGiveReputation(context, settings).isSuccess();
+                   })
                    .filter(receiver -> !settings.abuseProtection().isReceiverLimit(receiver, VoteType.UPVOTE))
                                    .limit(10)
                                    .collect(Collectors.toList());
@@ -205,7 +212,8 @@ public class MessageListener extends ListenerAdapter {
 
         if (members.size() == 1 && settings.reputation().isDirectActive()) {
             log.trace("Found single target on {}. Skipping embed", message.getIdLong());
-            reputationService.submitReputation(message.getGuild(), message.getMember(), members.get(0), message, null, ThankType.DIRECT, VoteType.UPVOTE);
+            var context = new SubmitResultContext(message.getGuild(), message.getMember(), members.get(0), message, ThankType.DIRECT, defaultContext.voteType());
+            reputationService.submitReputation(context, null);
             return;
         }
 
@@ -213,20 +221,5 @@ public class MessageListener extends ListenerAdapter {
             settings.repGuild().reputation().analyzer().log(message, SubmitResult.of(SubmitResultType.EMBED_SEND));
             reputationVoteListener.registerVote(message, members, settings);
         }
-    }
-
-    private void sendSubmitResultMessage(MessageReceivedEvent event, SubmitResultMessage result) {
-        if (result.isSuccess()) return;
-        if (result.message() == null || result.message().isEmpty()) return;
-
-        event.getChannel()
-            .sendMessageEmbeds(new EmbedBuilder()
-                .setDescription(result.message())
-                .setColor(Color.RED)
-                .build())
-            .mention(event.getMember())
-            .delay(8, TimeUnit.SECONDS)
-            .flatMap(Message::delete)
-            .queue(RestAction.getDefaultSuccess(), ErrorResponseException.ignore(ErrorResponse.UNKNOWN_MESSAGE)); 
     }
 }
